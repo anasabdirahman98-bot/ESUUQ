@@ -1,0 +1,134 @@
+/* Styles de base SUUQ — mobile-first (360 px), zéro police externe. */
+
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.45;
+  background: var(--suuq-fond);
+  color: var(--suuq-texte);
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+a { color: inherit; }
+
+h1, h2, h3 {
+  margin: 0 0 12px;
+  line-height: 1.2;
+}
+h1 { font-size: 22px; }
+h2 { font-size: 18px; }
+
+p { margin: 0 0 12px; }
+
+/* ---- En-tête ---- */
+.entete {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--suuq-surface);
+  border-bottom: 1px solid var(--suuq-bordure);
+}
+
+.logo {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: .5px;
+  color: var(--suuq-primaire);
+  text-decoration: none;
+}
+
+/* ---- Mise en page ---- */
+.conteneur {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.conteneur section + section { margin-top: 28px; }
+
+/* ---- Pied de page ---- */
+.pied {
+  margin-top: 40px;
+  padding: 24px 16px calc(24px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--suuq-bordure);
+  text-align: center;
+  font-size: 14px;
+  color: var(--suuq-texte-2);
+}
+.pied p { margin: 0 0 8px; }
+.pied a {
+  color: var(--suuq-primaire);
+  font-weight: 600;
+}
+
+/* ---- Boutons : cibles tactiles >= 44 px ---- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 16px;
+  border: none;
+  border-radius: var(--suuq-radius);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+.btn-primaire {
+  background: var(--suuq-primaire);
+  color: #fff;
+}
+.btn-primaire:active { background: var(--suuq-primaire-fonce); }
+.btn-secondaire {
+  background: var(--suuq-surface);
+  color: var(--suuq-primaire);
+  border: 1px solid var(--suuq-bordure);
+}
+
+/* ---- Formulaires : gros champs, faciles au pouce ---- */
+input,
+select,
+textarea {
+  font: inherit;
+  color: var(--suuq-texte);
+}
+input:not([type="checkbox"]):not([type="radio"]),
+select {
+  min-height: 48px;
+}
+
+/* ---- Accessibilité ---- */
+.visuellement-cache {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+:focus-visible {
+  outline: 3px solid var(--suuq-primaire);
+  outline-offset: 2px;
+}

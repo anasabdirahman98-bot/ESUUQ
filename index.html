@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#D95F18">
+  <meta name="description" content="SUUQ — le moteur de recherche du commerce djiboutien. Cherchez un produit, voyez qui en a, où, et à quel prix.">
+  <title>SUUQ — le commerce djiboutien, en un seul endroit</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icone-192.png">
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/composants.css">
+</head>
+<body>
+
+  <header class="entete">
+    <a class="logo" href="index.html">SUUQ</a>
+    <a class="btn btn-secondaire" href="connexion.html">Espace commerçant</a>
+  </header>
+
+  <main class="conteneur">
+
+    <section aria-label="Recherche">
+      <h1 class="visuellement-cache">SUUQ — chercher un produit à Djibouti</h1>
+      <p class="accroche">Qui vend ce que vous cherchez, où, et à quel prix.</p>
+
+      <div class="barre-recherche">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="7"></circle>
+          <line x1="16.5" y1="16.5" x2="21" y2="21"></line>
+        </svg>
+        <input type="search" id="champ-recherche" placeholder="Chercher un produit (ex : Samsung S24)" aria-label="Chercher un produit" autocomplete="off">
+      </div>
+
+      <!-- Chips catégories remplies par JS depuis js/constantes.js -->
+      <div class="chips" id="chips-categories" aria-label="Catégories"></div>
+    </section>
+
+    <section aria-label="Boutiques vérifiées">
+      <h2>Boutiques vérifiées</h2>
+      <div class="defile-horizontal" id="liste-boutiques"></div>
+    </section>
+
+    <section aria-label="Nouveautés">
+      <h2>Nouveautés</h2>
+      <div class="grille-produits" id="liste-nouveautes"></div>
+    </section>
+
+  </main>
+
+  <footer class="pied">
+    <p>SUUQ — le commerce djiboutien, en un seul endroit</p>
+    <a href="connexion.html">Devenir commerçant</a>
+  </footer>
+
+  <script type="module">
+    // Accueil statique (jalon M0) : chips depuis les constantes + squelettes.
+    // Le contenu réel (Firestore) et la recherche arrivent au jalon M3.
+    import { CATEGORIES } from "./js/constantes.js";
+    import { creerChip, creerSqueletteProduit, creerSqueletteBoutique } from "./js/ui.js";
+
+    const chips = document.getElementById("chips-categories");
+    for (const categorie of CATEGORIES) chips.append(creerChip(categorie));
+
+    const boutiques = document.getElementById("liste-boutiques");
+    for (let i = 0; i < 4; i++) boutiques.append(creerSqueletteBoutique());
+
+    const nouveautes = document.getElementById("liste-nouveautes");
+    for (let i = 0; i < 6; i++) nouveautes.append(creerSqueletteProduit());
+  </script>
+
+</body>
+</html>

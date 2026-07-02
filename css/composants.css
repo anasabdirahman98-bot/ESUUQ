@@ -1,0 +1,229 @@
+/* Composants SUUQ : recherche, chips, cartes, badges, squelettes. */
+
+/* ---- Zone de recherche (accueil) ---- */
+.accroche {
+  margin: 4px 0 12px;
+  font-size: 15px;
+  color: var(--suuq-texte-2);
+}
+
+.barre-recherche {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 14px;
+  background: var(--suuq-surface);
+  border: 1px solid var(--suuq-bordure);
+  border-radius: var(--suuq-radius);
+  box-shadow: var(--suuq-ombre);
+}
+.barre-recherche svg {
+  flex: none;
+  color: var(--suuq-texte-2);
+}
+.barre-recherche input {
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  border: none;
+  background: none;
+  font-size: 16px;
+}
+.barre-recherche input:focus { outline: none; }
+.barre-recherche:focus-within { border-color: var(--suuq-primaire); }
+
+/* ---- Chips catégories : rangée défilable ---- */
+.chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 14px 0 6px;
+  scrollbar-width: none;
+}
+.chips::-webkit-scrollbar { display: none; }
+
+.chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 16px;
+  background: var(--suuq-surface);
+  border: 1px solid var(--suuq-bordure);
+  border-radius: 999px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.chip.actif {
+  background: var(--suuq-primaire);
+  border-color: var(--suuq-primaire);
+  color: #fff;
+}
+
+/* ---- Défilement horizontal de cartes ---- */
+.defile-horizontal {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 4px 2px 10px;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+.defile-horizontal::-webkit-scrollbar { display: none; }
+
+/* ---- Carte boutique ---- */
+.carte-boutique {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  width: 150px;
+  padding: 14px;
+  scroll-snap-align: start;
+  background: var(--suuq-surface);
+  border: 1px solid var(--suuq-bordure);
+  border-radius: var(--suuq-radius);
+  box-shadow: var(--suuq-ombre);
+  text-decoration: none;
+}
+.carte-boutique .logo-boutique {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  object-fit: cover;
+  background: var(--suuq-fond);
+}
+.carte-boutique .nom {
+  font-size: 14px;
+  font-weight: 700;
+}
+.carte-boutique .quartier {
+  font-size: 13px;
+  color: var(--suuq-texte-2);
+}
+
+/* ---- Badge vérifié — jamais de variante grise ---- */
+.badge-verifie {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(31, 122, 77, .1);
+  color: var(--suuq-vert);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* ---- Grille produits : 2 colonnes mobile ---- */
+.grille-produits {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+@media (min-width: 560px) {
+  .grille-produits { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* ---- Carte produit ---- */
+.carte-produit {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--suuq-surface);
+  border: 1px solid var(--suuq-bordure);
+  border-radius: var(--suuq-radius);
+  box-shadow: var(--suuq-ombre);
+  text-decoration: none;
+}
+.carte-produit .photo {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  background: var(--suuq-fond);
+}
+.carte-produit .infos {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px 12px;
+}
+.carte-produit .nom {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 2.6em;
+  font-size: 14px;
+  font-weight: 600;
+}
+.carte-produit .prix {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--suuq-primaire);
+}
+.carte-produit .boutique-ligne {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--suuq-texte-2);
+}
+.carte-produit .coche { color: var(--suuq-vert); }
+
+/* Produit indisponible : grisé + pastille */
+.carte-produit.indisponible { opacity: .55; }
+.pastille-rupture {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(192, 57, 43, .1);
+  color: var(--suuq-rouge);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* ---- Bouton WhatsApp (utilisé à partir du jalon M3) ---- */
+.btn-whatsapp {
+  width: 100%;
+  background: var(--suuq-whatsapp);
+  color: #fff;
+}
+
+/* ---- Squelettes de chargement ---- */
+.squelette-bloc,
+.carte-produit .photo.squelette-bloc {
+  background: var(--suuq-bordure);
+  border-radius: 8px;
+  animation: pulsation 1.4s ease-in-out infinite;
+}
+@keyframes pulsation {
+  0%, 100% { opacity: .55; }
+  50% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .squelette-bloc { animation: none; }
+}
+
+/* ---- État vide ---- */
+.etat-vide {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--suuq-texte-2);
+}
+
+/* ---- Page en attente d'un jalon ultérieur ---- */
+.page-attente {
+  padding-top: 48px;
+  text-align: center;
+}
+.page-attente .pictogramme {
+  margin: 0 0 8px;
+  font-size: 40px;
+}
+.page-attente p { color: var(--suuq-texte-2); }
+.page-attente .btn { margin-top: 16px; }
