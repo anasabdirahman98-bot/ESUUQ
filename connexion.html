@@ -17,12 +17,130 @@
     <a class="logo" href="index.html">SUUQ</a>
   </header>
 
-  <main class="conteneur page-attente">
-    <p class="pictogramme">🔑</p>
+  <main class="conteneur conteneur-etroit">
     <h1>Espace commerçant</h1>
-    <p>Connexion et création de compte seront disponibles au jalon M1.</p>
-    <a class="btn btn-primaire" href="index.html">Retour à l'accueil</a>
+    <p class="accroche">Gérez votre boutique et vos produits sur SUUQ.</p>
+
+    <div class="onglets" role="tablist">
+      <button type="button" class="onglet actif" id="onglet-connexion" role="tab" aria-selected="true">Connexion</button>
+      <button type="button" class="onglet" id="onglet-inscription" role="tab" aria-selected="false">Créer un compte</button>
+    </div>
+
+    <div class="message" id="message" role="alert" hidden></div>
+
+    <form class="formulaire" id="form-connexion">
+      <div class="champ">
+        <label for="email-connexion">Email</label>
+        <input type="email" id="email-connexion" name="email" required autocomplete="email" placeholder="vous@exemple.com">
+      </div>
+      <div class="champ">
+        <label for="mdp-connexion">Mot de passe</label>
+        <input type="password" id="mdp-connexion" name="mdp" required minlength="6" autocomplete="current-password">
+      </div>
+      <button class="btn btn-primaire btn-large" type="submit">Se connecter</button>
+      <button class="lien-discret" type="button" id="btn-oubli">Mot de passe oublié ?</button>
+    </form>
+
+    <form class="formulaire" id="form-inscription" hidden>
+      <div class="champ">
+        <label for="email-inscription">Email</label>
+        <input type="email" id="email-inscription" name="email" required autocomplete="email" placeholder="vous@exemple.com">
+      </div>
+      <div class="champ">
+        <label for="mdp-inscription">Mot de passe</label>
+        <input type="password" id="mdp-inscription" name="mdp" required minlength="6" autocomplete="new-password">
+        <p class="aide">6 caractères minimum.</p>
+      </div>
+      <button class="btn btn-primaire btn-large" type="submit">Créer mon compte</button>
+      <p class="aide">Après la création de votre compte, vous créerez votre boutique — elle sera vérifiée par l'équipe SUUQ avant d'être en ligne.</p>
+    </form>
   </main>
+
+  <script type="module">
+    // Connexion / inscription / réinitialisation (jalon M1).
+    import { connecter, inscrire, reinitialiserMdp, utilisateurCourant, traduireErreur } from "./js/auth.js";
+    import { boutiqueDeProprietaire } from "./js/db.js";
+
+    const formConnexion = document.getElementById("form-connexion");
+    const formInscription = document.getElementById("form-inscription");
+    const ongletConnexion = document.getElementById("onglet-connexion");
+    const ongletInscription = document.getElementById("onglet-inscription");
+    const message = document.getElementById("message");
+
+    // Déjà connecté ? On route directement vers l'espace.
+    utilisateurCourant().then((user) => {
+      if (user) routerVersEspace(user);
+    });
+
+    // Avec boutique → tableau de bord ; sans boutique → création de boutique.
+    async function routerVersEspace(user) {
+      const boutique = await boutiqueDeProprietaire(user.uid);
+      location.replace(boutique ? "espace/index.html" : "espace/boutique.html");
+    }
+
+    function afficherMessage(texte, type) {
+      message.textContent = texte;
+      message.className = "message " + (type === "erreur" ? "message-erreur" : "message-succes");
+      message.hidden = false;
+    }
+
+    function basculer(versInscription) {
+      formConnexion.hidden = versInscription;
+      formInscription.hidden = !versInscription;
+      ongletConnexion.classList.toggle("actif", !versInscription);
+      ongletInscription.classList.toggle("actif", versInscription);
+      ongletConnexion.setAttribute("aria-selected", String(!versInscription));
+      ongletInscription.setAttribute("aria-selected", String(versInscription));
+      message.hidden = true;
+    }
+    ongletConnexion.addEventListener("click", () => basculer(false));
+    ongletInscription.addEventListener("click", () => basculer(true));
+
+    formConnexion.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const bouton = formConnexion.querySelector("button[type=submit]");
+      bouton.disabled = true;
+      bouton.textContent = "Connexion…";
+      try {
+        const cred = await connecter(formConnexion.email.value.trim(), formConnexion.mdp.value);
+        await routerVersEspace(cred.user);
+      } catch (erreur) {
+        afficherMessage(traduireErreur(erreur), "erreur");
+        bouton.disabled = false;
+        bouton.textContent = "Se connecter";
+      }
+    });
+
+    formInscription.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const bouton = formInscription.querySelector("button[type=submit]");
+      bouton.disabled = true;
+      bouton.textContent = "Création…";
+      try {
+        await inscrire(formInscription.email.value.trim(), formInscription.mdp.value);
+        // Nouveau compte : direction le formulaire "Créer ma boutique".
+        location.replace("espace/boutique.html");
+      } catch (erreur) {
+        afficherMessage(traduireErreur(erreur), "erreur");
+        bouton.disabled = false;
+        bouton.textContent = "Créer mon compte";
+      }
+    });
+
+    document.getElementById("btn-oubli").addEventListener("click", async () => {
+      const email = formConnexion.email.value.trim();
+      if (!email) {
+        afficherMessage("Saisissez d'abord votre email dans le champ ci-dessus.", "erreur");
+        return;
+      }
+      try {
+        await reinitialiserMdp(email);
+        afficherMessage("Email de réinitialisation envoyé. Vérifiez votre boîte mail.", "succes");
+      } catch (erreur) {
+        afficherMessage(traduireErreur(erreur), "erreur");
+      }
+    });
+  </script>
 
 </body>
 </html>

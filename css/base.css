@@ -6,6 +6,9 @@
 
 html { -webkit-text-size-adjust: 100%; }
 
+/* L'attribut hidden doit toujours gagner, même si une classe fixe display */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#D95F18">
-  <title>Ma boutique — SUUQ</title>
+  <title>Créer ma boutique — SUUQ</title>
   <link rel="manifest" href="../manifest.json">
   <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="../css/variables.css">
@@ -17,12 +17,304 @@
     <a class="logo" href="../index.html">SUUQ</a>
   </header>
 
-  <main class="conteneur page-attente">
-    <p class="pictogramme">🏪</p>
-    <h1>Créer / modifier ma boutique</h1>
-    <p>Ce formulaire sera construit au jalon M1.</p>
-    <a class="btn btn-primaire" href="../index.html">Retour à l'accueil</a>
+  <main class="conteneur conteneur-etroit">
+
+    <p id="chargement" class="etat-vide">Chargement…</p>
+
+    <form class="formulaire" id="form-boutique" hidden>
+      <h1>Créer ma boutique</h1>
+
+      <div class="message" id="message" role="alert" hidden></div>
+
+      <div class="champ">
+        <label for="nom">Nom de la boutique *</label>
+        <input type="text" id="nom" name="nom" required maxlength="60">
+      </div>
+
+      <div class="champ">
+        <label for="categorie">Catégorie *</label>
+        <select id="categorie" name="categorie" required></select>
+      </div>
+
+      <div class="champ">
+        <label for="description">Description</label>
+        <textarea id="description" name="description" maxlength="280" placeholder="Ce que vous vendez, en quelques mots"></textarea>
+      </div>
+
+      <div class="champ">
+        <label for="quartier">Quartier *</label>
+        <select id="quartier" name="quartier" required></select>
+      </div>
+
+      <div class="champ">
+        <label for="repere">Repère *</label>
+        <input type="text" id="repere" name="repere" required maxlength="120" placeholder="Ex : en face de la pharmacie d'Einguela">
+        <p class="aide">Un point de repère connu pour vous trouver facilement.</p>
+      </div>
+
+      <div class="champ">
+        <label>Position GPS (optionnel)</label>
+        <div class="ligne-gps">
+          <button type="button" class="btn btn-secondaire" id="btn-gps">📍 Utiliser ma position</button>
+          <button type="button" class="lien-discret" id="btn-gps-effacer" hidden>Effacer</button>
+        </div>
+        <p class="aide" id="gps-statut"></p>
+      </div>
+
+      <div class="champ">
+        <label for="whatsapp">Numéro WhatsApp *</label>
+        <div class="groupe-tel">
+          <span class="prefixe">+253</span>
+          <input type="tel" id="whatsapp" name="whatsapp" required inputmode="numeric"
+                 maxlength="8" placeholder="77123456">
+        </div>
+        <p class="aide">8 chiffres, commençant par 77. C'est le numéro que les clients contacteront.</p>
+      </div>
+
+      <fieldset class="champ champ-horaires">
+        <legend>Horaires</legend>
+        <div id="liste-jours"></div>
+        <button type="button" class="lien-discret" id="btn-horaires-plus-tard">Renseigner plus tard</button>
+      </fieldset>
+
+      <div class="champ">
+        <label for="logo">Logo (optionnel)</label>
+        <input type="file" id="logo" accept="image/*">
+        <img class="apercu-image" id="apercu-logo" alt="Aperçu du logo" hidden>
+      </div>
+
+      <div class="champ">
+        <label for="couverture">Photo de couverture (optionnel)</label>
+        <input type="file" id="couverture" accept="image/*">
+        <img class="apercu-image apercu-large" id="apercu-couverture" alt="Aperçu de la couverture" hidden>
+      </div>
+
+      <button class="btn btn-primaire btn-large" type="submit">Créer ma boutique</button>
+    </form>
+
+    <div class="page-attente" id="confirmation" hidden>
+      <p class="pictogramme">✅</p>
+      <h1>Boutique créée !</h1>
+      <p>Votre boutique est en cours de vérification par l'équipe SUUQ.<br>
+         Vous pouvez déjà ajouter vos produits.</p>
+      <a class="btn btn-primaire" href="index.html">Aller à mon tableau de bord</a>
+    </div>
+
   </main>
+
+  <script type="module">
+    // Création de boutique (jalon M1). L'édition arrive avec le tableau de bord (M2).
+    import { exigerConnexion } from "../js/auth.js";
+    import { boutiqueDeProprietaire, creerBoutique } from "../js/db.js";
+    import { compresserLogo, compresserPhoto } from "../js/images.js";
+    import { uploaderImage } from "../js/images.js";
+    import { CATEGORIES, QUARTIERS } from "../js/constantes.js";
+
+    const chargement = document.getElementById("chargement");
+    const form = document.getElementById("form-boutique");
+    const confirmation = document.getElementById("confirmation");
+    const message = document.getElementById("message");
+
+    // ---- Listes déroulantes depuis les constantes ----
+    function remplirListe(select, valeurs, invite) {
+      select.append(new Option(invite, "", true, true));
+      select.options[0].disabled = true;
+      for (const v of valeurs) select.append(new Option(v, v));
+    }
+    remplirListe(document.getElementById("categorie"), CATEGORIES, "Choisir une catégorie");
+    remplirListe(document.getElementById("quartier"), QUARTIERS, "Choisir un quartier");
+
+    // ---- Horaires : 2 plages par jour (décision Chen, M1) ----
+    // La semaine commerçante locale commence samedi ; vendredi fermé le matin.
+    const JOURS = [
+      ["sam", "Samedi"], ["dim", "Dimanche"], ["lun", "Lundi"], ["mar", "Mardi"],
+      ["mer", "Mercredi"], ["jeu", "Jeudi"], ["ven", "Vendredi"],
+    ];
+    const DEFAUTS = {
+      sam: ["08:00", "13:00", "16:00", "20:00"],
+      dim: ["08:00", "13:00", "16:00", "20:00"],
+      lun: ["08:00", "13:00", "16:00", "20:00"],
+      mar: ["08:00", "13:00", "16:00", "20:00"],
+      mer: ["08:00", "13:00", "16:00", "20:00"],
+      jeu: ["08:00", "13:00", "16:00", "20:00"],
+      ven: ["16:00", "20:00", "", ""], // vendredi : ouvert l'après-midi seulement
+    };
+
+    const listeJours = document.getElementById("liste-jours");
+    for (const [cle, nom] of JOURS) {
+      const [de, a, de2, a2] = DEFAUTS[cle];
+      const ligne = document.createElement("div");
+      ligne.className = "jour-ligne";
+      ligne.id = "jour-" + cle;
+      ligne.innerHTML = `
+        <div class="jour-entete">
+          <span class="jour-nom">${nom}</span>
+          <label class="interrupteur" aria-label="${nom} ouvert">
+            <input type="checkbox" checked>
+            <span class="glissiere"></span>
+          </label>
+        </div>
+        <div class="plages">
+          <div class="plage">de <input type="time" value="${de}"> à <input type="time" value="${a}"></div>
+          <div class="plage">et de <input type="time" value="${de2}"> à <input type="time" value="${a2}"> <span class="aide">(optionnel)</span></div>
+        </div>`;
+      ligne.querySelector("input[type=checkbox]").addEventListener("change", (e) => {
+        ligne.classList.toggle("ferme", !e.target.checked);
+      });
+      listeJours.append(ligne);
+    }
+
+    // Bouton "Renseigner plus tard" : horaires = null à la soumission.
+    let horairesPlusTard = false;
+    const btnPlusTard = document.getElementById("btn-horaires-plus-tard");
+    btnPlusTard.addEventListener("click", () => {
+      horairesPlusTard = !horairesPlusTard;
+      listeJours.hidden = horairesPlusTard;
+      btnPlusTard.textContent = horairesPlusTard
+        ? "Horaires laissés pour plus tard — cliquez pour les renseigner maintenant"
+        : "Renseigner plus tard";
+    });
+
+    function collecterHoraires() {
+      if (horairesPlusTard) return null;
+      const horaires = {};
+      for (const [cle, nom] of JOURS) {
+        const ligne = document.getElementById("jour-" + cle);
+        const ouvert = ligne.querySelector("input[type=checkbox]").checked;
+        const [de, a, de2, a2] = [...ligne.querySelectorAll("input[type=time]")].map((i) => i.value || null);
+        if (ouvert && (!de || !a)) {
+          throw new Error(`Complétez la première plage du ${nom.toLowerCase()}, ou fermez ce jour.`);
+        }
+        if (ouvert && ((de2 && !a2) || (!de2 && a2))) {
+          throw new Error(`La deuxième plage du ${nom.toLowerCase()} est incomplète.`);
+        }
+        horaires[cle] = ouvert
+          ? { ouvert: true, de, a, de2, a2 }
+          : { ouvert: false, de: null, a: null, de2: null, a2: null };
+      }
+      return horaires;
+    }
+
+    // ---- Position GPS (optionnelle) ----
+    let geo = null;
+    const gpsStatut = document.getElementById("gps-statut");
+    const btnGpsEffacer = document.getElementById("btn-gps-effacer");
+    document.getElementById("btn-gps").addEventListener("click", () => {
+      gpsStatut.textContent = "Recherche de votre position…";
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          geo = { lat: +pos.coords.latitude.toFixed(6), lng: +pos.coords.longitude.toFixed(6) };
+          gpsStatut.textContent = `Position enregistrée : ${geo.lat}, ${geo.lng}`;
+          btnGpsEffacer.hidden = false;
+        },
+        () => { gpsStatut.textContent = "Impossible d'obtenir la position. Vérifiez l'autorisation de localisation."; },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    });
+    btnGpsEffacer.addEventListener("click", () => {
+      geo = null;
+      gpsStatut.textContent = "";
+      btnGpsEffacer.hidden = true;
+    });
+
+    // ---- Logo et couverture : compression immédiate + aperçu ----
+    let blobLogo = null;
+    let blobCouverture = null;
+    function brancherUpload(idInput, idApercu, compresser, affecter) {
+      const input = document.getElementById(idInput);
+      const apercu = document.getElementById(idApercu);
+      input.addEventListener("change", async () => {
+        const fichier = input.files[0];
+        if (!fichier) return;
+        try {
+          const blob = await compresser(fichier);
+          affecter(blob);
+          apercu.src = URL.createObjectURL(blob);
+          apercu.hidden = false;
+        } catch (erreur) {
+          affecter(null);
+          input.value = "";
+          apercu.hidden = true;
+          afficherErreur(erreur.message);
+        }
+      });
+    }
+    brancherUpload("logo", "apercu-logo", compresserLogo, (b) => (blobLogo = b));
+    brancherUpload("couverture", "apercu-couverture", compresserPhoto, (b) => (blobCouverture = b));
+
+    function afficherErreur(texte) {
+      message.textContent = texte;
+      message.className = "message message-erreur";
+      message.hidden = false;
+      message.scrollIntoView({ block: "nearest" });
+    }
+
+    // ---- Garde de page + anti double boutique ----
+    const user = await exigerConnexion("../connexion.html");
+    if (user) {
+      const existante = await boutiqueDeProprietaire(user.uid);
+      if (existante) {
+        location.replace("index.html"); // une seule boutique par compte
+      } else {
+        chargement.hidden = true;
+        form.hidden = false;
+      }
+    }
+
+    // ---- Soumission ----
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      message.hidden = true;
+
+      const numero = form.whatsapp.value.trim();
+      if (!/^77\d{6}$/.test(numero)) {
+        afficherErreur("Numéro WhatsApp invalide : 8 chiffres commençant par 77.");
+        return;
+      }
+
+      let horaires;
+      try {
+        horaires = collecterHoraires();
+      } catch (erreur) {
+        afficherErreur(erreur.message);
+        return;
+      }
+
+      const bouton = form.querySelector("button[type=submit]");
+      bouton.disabled = true;
+      bouton.textContent = "Création en cours…";
+      try {
+        let logoUrl = null;
+        let couvertureUrl = null;
+        if (blobLogo) logoUrl = await uploaderImage(blobLogo, user.uid, `logo-${Date.now()}.jpg`);
+        if (blobCouverture) couvertureUrl = await uploaderImage(blobCouverture, user.uid, `couverture-${Date.now()}.jpg`);
+
+        await creerBoutique(user, {
+          nom: form.nom.value.trim(),
+          description: form.description.value.trim(),
+          categorie: form.categorie.value,
+          quartier: form.quartier.value,
+          repere: form.repere.value.trim(),
+          geo,
+          whatsapp: "253" + numero,
+          horaires,
+          logoUrl,
+          couvertureUrl,
+        });
+
+        form.hidden = true;
+        confirmation.hidden = false;
+        window.scrollTo(0, 0);
+      } catch (erreur) {
+        const refus = erreur?.code === "permission-denied";
+        afficherErreur(refus
+          ? "Création refusée par le serveur. Vérifiez que les règles de sécurité Firestore sont bien en place."
+          : "La création a échoué. Vérifiez votre connexion et réessayez.");
+        bouton.disabled = false;
+        bouton.textContent = "Créer ma boutique";
+      }
+    });
+  </script>
 
 </body>
 </html>

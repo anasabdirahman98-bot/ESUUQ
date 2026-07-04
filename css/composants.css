@@ -216,6 +216,223 @@
   color: var(--suuq-texte-2);
 }
 
+/* ---- Onglets (connexion / inscription) ---- */
+.onglets {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 16px;
+  background: var(--suuq-surface);
+  border: 1px solid var(--suuq-bordure);
+  border-radius: var(--suuq-radius);
+}
+.onglet {
+  flex: 1;
+  min-height: 44px;
+  border: none;
+  border-radius: 10px;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: var(--suuq-texte-2);
+  cursor: pointer;
+}
+.onglet.actif {
+  background: var(--suuq-primaire);
+  color: #fff;
+}
+
+/* ---- Formulaires ---- */
+.conteneur-etroit { max-width: 440px; }
+
+.formulaire {
+  display: grid;
+  gap: 16px;
+}
+.champ {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+.champ label,
+.champ legend {
+  font-size: 14px;
+  font-weight: 600;
+}
+.champ input:not([type="checkbox"]):not([type="file"]),
+.champ select,
+.champ textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--suuq-bordure);
+  border-radius: 10px;
+  background: var(--suuq-surface);
+  font-size: 16px;
+}
+.champ textarea {
+  min-height: 88px;
+  resize: vertical;
+}
+.aide {
+  margin: 0;
+  font-size: 13px;
+  color: var(--suuq-texte-2);
+}
+
+.message {
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.message-erreur {
+  background: rgba(192, 57, 43, .08);
+  color: var(--suuq-rouge);
+}
+.message-succes {
+  background: rgba(31, 122, 77, .08);
+  color: var(--suuq-vert);
+}
+
+.btn-large { width: 100%; }
+
+.lien-discret {
+  min-height: 44px;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--suuq-primaire);
+  cursor: pointer;
+  text-align: left;
+}
+
+/* ---- Téléphone avec préfixe fixe +253 ---- */
+.groupe-tel { display: flex; }
+.groupe-tel .prefixe {
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border: 1px solid var(--suuq-bordure);
+  border-right: none;
+  border-radius: 10px 0 0 10px;
+  background: var(--suuq-fond);
+  font-weight: 600;
+}
+.champ .groupe-tel input {
+  border-radius: 0 10px 10px 0;
+}
+
+/* ---- Interrupteur (Ouvert/Fermé, Disponible/Rupture) ---- */
+.interrupteur {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 52px;
+  height: 30px;
+}
+.interrupteur input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.interrupteur .glissiere {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--suuq-bordure);
+  transition: background .15s;
+  pointer-events: none;
+}
+.interrupteur .glissiere::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .2);
+  transition: left .15s;
+}
+.interrupteur input:checked + .glissiere { background: var(--suuq-vert); }
+.interrupteur input:checked + .glissiere::after { left: 25px; }
+
+/* ---- Éditeur d'horaires ---- */
+.champ-horaires #liste-jours {
+  display: grid;
+  gap: 8px;
+}
+.jour-ligne {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--suuq-surface);
+  border: 1px solid var(--suuq-bordure);
+  border-radius: 10px;
+}
+.jour-entete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.jour-nom { font-weight: 600; }
+.plages { display: grid; gap: 6px; }
+.plage {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--suuq-texte-2);
+}
+.plage input[type="time"] {
+  min-height: 40px;
+  padding: 6px 8px;
+  border: 1px solid var(--suuq-bordure);
+  border-radius: 8px;
+  background: var(--suuq-surface);
+  font-size: 14px;
+}
+.jour-ligne.ferme .plages { display: none; }
+
+/* ---- Ligne GPS ---- */
+.ligne-gps {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ---- Aperçus d'upload ---- */
+.apercu-image {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border: 1px solid var(--suuq-bordure);
+  border-radius: 10px;
+  background: var(--suuq-fond);
+}
+.apercu-image.apercu-large { width: 100%; height: 140px; }
+
+/* ---- Bandeau de statut boutique ---- */
+.bandeau-statut {
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border-radius: var(--suuq-radius);
+  font-weight: 600;
+}
+.bandeau-attente { background: rgba(217, 95, 24, .1); color: var(--suuq-primaire-fonce); }
+.bandeau-active { background: rgba(31, 122, 77, .1); color: var(--suuq-vert); }
+.bandeau-suspendue { background: rgba(192, 57, 43, .1); color: var(--suuq-rouge); }
+
 /* ---- Page en attente d'un jalon ultérieur ---- */
 .page-attente {
   padding-top: 48px;

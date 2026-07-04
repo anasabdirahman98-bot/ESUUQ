@@ -1,0 +1,75 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function connecte() { return request.auth != null; }
+    function estAdmin() {
+      return connecte() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+    function estProprio(data) { return connecte() && data.ownerUid == request.auth.uid; }
+
+    match /boutiques/{id} {
+      // Lecture : publique si active ; sinon proprio ou admin
+      allow read: if resource.data.statut == "active"
+                  || estProprio(resource.data) || estAdmin();
+
+      // Création : par le proprio, statut et badge forcés, une boutique par compte (vérifié côté app)
+      allow create: if estProprio(request.resource.data)
+                    && request.resource.data.statut == "en_attente"
+                    && request.resource.data.badgeVerifie == false
+                    && request.resource.data.stats.vues == 0
+                    && request.resource.data.stats.clicsWhatsapp == 0;
+
+      // Mise à jour par le proprio : interdiction de toucher statut, badge, stats, ownerUid
+      allow update: if estProprio(resource.data)
+                    && !request.resource.data.diff(resource.data).affectedKeys()
+                         .hasAny(['statut','badgeVerifie','stats','ownerUid']);
+
+      // Mise à jour admin : tout sauf ownerUid
+      allow update: if estAdmin()
+                    && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['ownerUid']);
+
+      // Compteurs publics : SEULE modification autorisée sans être proprio/admin,
+      // uniquement le champ stats, incréments de 0 ou +1
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stats'])
+                    && request.resource.data.stats.vues >= resource.data.stats.vues
+                    && request.resource.data.stats.vues <= resource.data.stats.vues + 1
+                    && request.resource.data.stats.clicsWhatsapp >= resource.data.stats.clicsWhatsapp
+                    && request.resource.data.stats.clicsWhatsapp <= resource.data.stats.clicsWhatsapp + 1;
+
+      allow delete: if estAdmin();
+    }
+
+    match /produits/{id} {
+      allow read: if resource.data.visible == true
+                  || estProprio(resource.data) || estAdmin();
+      allow create: if estProprio(request.resource.data)
+                    && request.resource.data.visible == true
+                    && request.resource.data.stats.vues == 0
+                    && request.resource.data.stats.clicsWhatsapp == 0
+                    && request.resource.data.photos.size() >= 1
+                    && request.resource.data.photos.size() <= 3;
+      allow update: if estProprio(resource.data)
+                    && !request.resource.data.diff(resource.data).affectedKeys()
+                         .hasAny(['visible','stats','ownerUid','boutiqueId']);
+      allow update: if estAdmin();
+      // Compteurs publics, même logique que boutiques
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stats'])
+                    && request.resource.data.stats.vues >= resource.data.stats.vues
+                    && request.resource.data.stats.vues <= resource.data.stats.vues + 1
+                    && request.resource.data.stats.clicsWhatsapp >= resource.data.stats.clicsWhatsapp
+                    && request.resource.data.stats.clicsWhatsapp <= resource.data.stats.clicsWhatsapp + 1;
+      allow delete: if estProprio(resource.data) || estAdmin();
+    }
+
+    match /boutiques_prive/{id} {
+      allow read, write: if estAdmin()
+        || (connecte() && get(/databases/$(database)/documents/boutiques/$(id)).data.ownerUid == request.auth.uid);
+    }
+
+    match /admins/{uid} {
+      allow read: if connecte() && request.auth.uid == uid;
+      allow write: if false;   // gestion uniquement via console Firebase
+    }
+  }
+}

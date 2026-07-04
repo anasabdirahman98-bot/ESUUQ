@@ -15,14 +15,57 @@
 
   <header class="entete">
     <a class="logo" href="../index.html">SUUQ</a>
+    <button class="btn btn-secondaire" id="btn-deconnexion">Se déconnecter</button>
   </header>
 
-  <main class="conteneur page-attente">
-    <p class="pictogramme">📊</p>
-    <h1>Tableau de bord</h1>
-    <p>Le tableau de bord commerçant sera construit au jalon M2.</p>
-    <a class="btn btn-primaire" href="../index.html">Retour à l'accueil</a>
+  <main class="conteneur">
+
+    <p id="chargement" class="etat-vide">Chargement…</p>
+
+    <div id="contenu" hidden>
+      <div class="bandeau-statut" id="bandeau"></div>
+      <h1 id="nom-boutique"></h1>
+      <p class="accroche" id="infos-boutique"></p>
+      <p class="etat-vide">🛠️ La gestion des produits, les statistiques et le partage
+         de votre boutique arrivent au jalon M2.</p>
+    </div>
+
   </main>
+
+  <script type="module">
+    // Tableau de bord commerçant — version minimale M1 (garde + statut).
+    // Compteurs, liste produits et partage arrivent au jalon M2.
+    import { exigerConnexion, deconnecter } from "../js/auth.js";
+    import { boutiqueDeProprietaire } from "../js/db.js";
+
+    document.getElementById("btn-deconnexion").addEventListener("click", async () => {
+      await deconnecter();
+      location.replace("../index.html");
+    });
+
+    const user = await exigerConnexion("../connexion.html");
+    if (user) {
+      const boutique = await boutiqueDeProprietaire(user.uid);
+      if (!boutique) {
+        location.replace("boutique.html"); // pas encore de boutique : formulaire de création
+      } else {
+        const BANDEAUX = {
+          en_attente: ["bandeau-attente", "⏳ En attente de validation"],
+          active: ["bandeau-active", "✅ En ligne"],
+          suspendue: ["bandeau-suspendue", "⛔ Suspendue — contactez SUUQ"],
+        };
+        const [classe, texte] = BANDEAUX[boutique.statut] || BANDEAUX.en_attente;
+        const bandeau = document.getElementById("bandeau");
+        bandeau.classList.add(classe);
+        bandeau.textContent = texte;
+        document.getElementById("nom-boutique").textContent = boutique.nom;
+        document.getElementById("infos-boutique").textContent =
+          `${boutique.categorie} · ${boutique.quartier}`;
+        document.getElementById("chargement").hidden = true;
+        document.getElementById("contenu").hidden = false;
+      }
+    }
+  </script>
 
 </body>
 </html>

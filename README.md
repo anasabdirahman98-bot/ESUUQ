@@ -24,13 +24,30 @@ python3 -m http.server 8000
 | Jalon | Contenu | État |
 |---|---|---|
 | M0 | Squelette, CSS de base, constantes, manifest, config Firebase, accueil statique | ✅ Fait |
-| M1 | Auth + création de boutique + garde des pages `espace/` | ⏳ À venir |
+| M1 | Auth + création de boutique + garde des pages `espace/` | ✅ Fait |
 | M2 | CRUD produits, compression images, tableau de bord | ⏳ À venir |
 | M3 | Vitrine publique : recherche, fiches, WhatsApp, favoris, compteurs | ⏳ À venir |
 | M4 | Espace admin : validation, badge vérifié, modération | ⏳ À venir |
 | M5 | Service worker, hors-ligne, audit performance, déploiement | ⏳ À venir |
 
 Le cahier des charges complet est dans [`docs/cahier-des-charges-phase1.md`](docs/cahier-des-charges-phase1.md).
+
+### Décisions prises avec Chen
+
+- **Horaires (M1)** : deux plages par jour `{ouvert, de, a, de2, a2}` (la 2e plage est
+  optionnelle) au lieu du modèle §5.1 à une seule plage — nécessaire pour représenter
+  la coupure de midi (Sam–Jeu 08:00–13:00 / 16:00–20:00, Ven ouvert l'après-midi
+  seulement). L'indicateur Ouvert/Fermé (M3) devra tenir compte des deux plages.
+
+## Mise en route Firebase (à faire une fois, console Firebase)
+
+1. **Authentication** → Sign-in method → activer **E-mail/Mot de passe**.
+2. **Firestore Database** → créer la base (mode production) → onglet *Règles* →
+   coller le contenu de [`firebase/firestore.rules`](firebase/firestore.rules) → Publier.
+3. **Storage** → démarrer → onglet *Règles* →
+   coller le contenu de [`firebase/storage.rules`](firebase/storage.rules) → Publier.
+4. (Recommandé) **Authentication → Settings → Domaines autorisés** : vérifier que
+   `anasabdirahman98-bot.github.io` et `localhost` figurent dans la liste.
 
 ## Structure
 
