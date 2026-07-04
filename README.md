@@ -38,13 +38,18 @@ Le cahier des charges complet est dans [`docs/cahier-des-charges-phase1.md`](doc
   optionnelle) au lieu du modèle §5.1 à une seule plage — nécessaire pour représenter
   la coupure de midi (Sam–Jeu 08:00–13:00 / 16:00–20:00, Ven ouvert l'après-midi
   seulement). L'indicateur Ouvert/Fermé (M3) devra tenir compte des deux plages.
-- **Réseau national (correctif M1) — réglage de PRODUCTION, ne pas revenir en arrière** :
-  le réseau de l'opérateur djiboutien bloque le streaming WebChannel de Firestore.
-  `js/db.js` initialise donc Firestore avec
-  `initializeFirestore(app, { experimentalForceLongPolling: true })`, et **toute**
-  lecture/écriture Firestore (jalons M2+ compris) doit passer par le helper
-  `avecDelai()` de `js/db.js` (timeout 15 s → erreur `delai-depasse`,
-  message « Connexion instable, réessayez. »). Jamais d'opération sans feedback.
+- **Base Firestore nommée `default` (correctif M1) — ne jamais retirer le 3ᵉ argument** :
+  la base Firestore du projet est une base NOMMÉE d'ID `default` (sans parenthèses),
+  pas la base par défaut `(default)`. `js/db.js` initialise donc :
+  `initializeFirestore(app, { experimentalForceLongPolling: true }, "default")`.
+  Sans ce 3ᵉ argument, le SDK vise `(default)` qui n'existe pas (404 NOT_FOUND) et
+  toutes les opérations pendent en retry silencieux jusqu'au timeout. Le long-polling
+  forcé est conservé par simple précaution (le diagnostic initial « WebChannel bloqué
+  par le réseau » a été infirmé — REST instantané).
+- **Timeout systématique (M1)** : **toute** lecture/écriture Firestore (jalons M2+
+  compris) doit passer par le helper `avecDelai()` de `js/db.js` (15 s → erreur
+  `delai-depasse`, message « Connexion instable, réessayez. »). Jamais d'opération
+  sans feedback — c'est ce garde-fou qui a permis le diagnostic ci-dessus.
 
 ## Mise en route Firebase (à faire une fois, console Firebase)
 

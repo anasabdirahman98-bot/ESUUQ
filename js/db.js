@@ -19,11 +19,15 @@ import { normaliser } from "./constantes.js";
 
 export const app = initializeApp(firebaseConfig);
 
-// RÉGLAGE DE PRODUCTION — ne pas revenir à l'auto-détection.
-// Le réseau de l'opérateur national bloque le streaming WebChannel de
-// Firestore : sans long-polling forcé, les lectures/écritures restent
-// suspendues indéfiniment sur PC comme sur mobile.
-export const db = initializeFirestore(app, { experimentalForceLongPolling: true });
+// Base Firestore NOMMÉE "default" (≠ "(default)") — ne jamais retirer ce
+// 3e argument, sinon toutes les opérations pendent en NOT_FOUND : le SDK
+// viserait la base par défaut "(default)", qui n'existe pas dans ce projet
+// (l'API REST répond 404), et resterait en retry silencieux jusqu'au timeout.
+//
+// Le long-polling forcé est conservé par simple précaution : le diagnostic
+// initial « réseau national bloque WebChannel » a été infirmé (REST
+// instantané) — la cause réelle des blocages était l'ID de base ci-dessus.
+export const db = initializeFirestore(app, { experimentalForceLongPolling: true }, "default");
 
 // Toute lecture/écriture Firestore passe par avecDelai() : au-delà du délai,
 // on rejette avec code "delai-depasse" pour rendre la main à l'utilisateur —
