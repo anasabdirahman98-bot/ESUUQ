@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#D95F18">
-  <title>Mon produit — SUUQ</title>
+  <title>Ajouter un produit — SUUQ</title>
   <link rel="manifest" href="../manifest.json">
   <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="../css/variables.css">
@@ -15,14 +15,256 @@
 
   <header class="entete">
     <a class="logo" href="../index.html">SUUQ</a>
+    <a class="btn btn-secondaire" href="index.html">Tableau de bord</a>
   </header>
 
-  <main class="conteneur page-attente">
-    <p class="pictogramme">📦</p>
-    <h1>Ajouter / modifier un produit</h1>
-    <p>Ce formulaire sera construit au jalon M2.</p>
-    <a class="btn btn-primaire" href="../index.html">Retour à l'accueil</a>
+  <main class="conteneur conteneur-etroit">
+
+    <p id="chargement" class="etat-vide">Chargement…</p>
+
+    <div class="page-attente" id="erreur-chargement" hidden>
+      <p class="pictogramme">📶</p>
+      <p>Connexion instable, réessayez.</p>
+      <button class="btn btn-primaire" onclick="location.reload()">Réessayer</button>
+    </div>
+
+    <form class="formulaire" id="form-produit" hidden>
+      <h1 id="titre">Ajouter un produit</h1>
+
+      <div class="message" id="message" role="alert" hidden></div>
+
+      <div class="champ">
+        <label for="nom">Nom du produit *</label>
+        <input type="text" id="nom" name="nom" required maxlength="60" placeholder="Ex : Samsung Galaxy S24 128 Go">
+      </div>
+
+      <div class="champ">
+        <label for="prix">Prix *</label>
+        <input type="number" id="prix" name="prix" required min="1" step="1" inputmode="numeric" placeholder="45000">
+        <p class="aide">En francs Djibouti (FDJ), sans centimes.</p>
+      </div>
+
+      <div class="champ">
+        <label for="categorie">Catégorie *</label>
+        <select id="categorie" name="categorie" required></select>
+      </div>
+
+      <div class="champ">
+        <label for="description">Description</label>
+        <textarea id="description" name="description" maxlength="280" placeholder="État, garantie, couleurs disponibles…"></textarea>
+      </div>
+
+      <div class="champ">
+        <label for="tags">Mots-clés</label>
+        <input type="text" id="tags" name="tags" placeholder="Ex : samsung, téléphone, neuf">
+        <p class="aide">Jusqu'à 5, séparés par des virgules. Ils aident les clients à trouver votre produit.</p>
+      </div>
+
+      <div class="champ">
+        <label for="photos">Photos * (1 à 3)</label>
+        <input type="file" id="photos" accept="image/*" multiple>
+        <p class="aide">La première photo est la photo principale.</p>
+        <div class="grille-photos" id="grille-photos"></div>
+      </div>
+
+      <div class="champ">
+        <div class="jour-entete">
+          <label for="disponible">Disponible à la vente</label>
+          <label class="interrupteur" aria-label="Disponible / Rupture">
+            <input type="checkbox" id="disponible" checked>
+            <span class="glissiere"></span>
+          </label>
+        </div>
+      </div>
+
+      <button class="btn btn-primaire btn-large" type="submit" id="btn-envoyer">Ajouter le produit</button>
+    </form>
+
   </main>
+
+  <script type="module">
+    // Ajout / édition d'un produit (jalon M2). Photos : compression client
+    // (§8.3 amendé) puis upload Cloudinary ; miniature = transformation d'URL.
+    import { exigerConnexion } from "../js/auth.js";
+    import { boutiqueDeProprietaire, produitParId, creerProduit, majProduit } from "../js/db.js";
+    import { compresserPhoto, uploaderImage, urlMiniature } from "../js/images.js";
+    import { CATEGORIES, normaliser } from "../js/constantes.js";
+
+    const chargement = document.getElementById("chargement");
+    const form = document.getElementById("form-produit");
+    const message = document.getElementById("message");
+    const btnEnvoyer = document.getElementById("btn-envoyer");
+
+    const selectCategorie = document.getElementById("categorie");
+    for (const c of CATEGORIES) selectCategorie.append(new Option(c, c));
+
+    function afficherErreur(texte) {
+      message.textContent = texte;
+      message.className = "message message-erreur";
+      message.hidden = false;
+      message.scrollIntoView({ block: "nearest" });
+    }
+
+    // ---- Photos : état = URLs existantes (édition) + nouveaux blobs ----
+    const MAX_PHOTOS = 3;
+    let photos = []; // { url?: string, blob?: Blob, apercu: string }
+    const grille = document.getElementById("grille-photos");
+    const inputPhotos = document.getElementById("photos");
+
+    function rendrePhotos() {
+      grille.innerHTML = "";
+      photos.forEach((photo, index) => {
+        const item = document.createElement("div");
+        item.className = "photo-item";
+        const img = document.createElement("img");
+        img.src = photo.apercu;
+        img.alt = `Photo ${index + 1}`;
+        const retirer = document.createElement("button");
+        retirer.type = "button";
+        retirer.className = "btn-retirer";
+        retirer.setAttribute("aria-label", `Retirer la photo ${index + 1}`);
+        retirer.textContent = "✕";
+        retirer.addEventListener("click", () => {
+          photos.splice(index, 1);
+          rendrePhotos();
+        });
+        item.append(img, retirer);
+        grille.append(item);
+      });
+    }
+
+    inputPhotos.addEventListener("change", async () => {
+      message.hidden = true;
+      for (const fichier of inputPhotos.files) {
+        if (photos.length >= MAX_PHOTOS) {
+          afficherErreur("3 photos maximum.");
+          break;
+        }
+        try {
+          const blob = await compresserPhoto(fichier);
+          photos.push({ blob, apercu: URL.createObjectURL(blob) });
+        } catch (erreur) {
+          afficherErreur(erreur.message);
+        }
+      }
+      inputPhotos.value = "";
+      rendrePhotos();
+    });
+
+    // ---- Mots-clés : max 5, normalisés (minuscules sans accents), dédoublonnés ----
+    function collecterTags() {
+      const tags = [...new Set(
+        form.tags.value.split(",").map((t) => normaliser(t).trim()).filter(Boolean)
+      )];
+      if (tags.length > 5) {
+        throw new Error("5 mots-clés maximum.");
+      }
+      return tags;
+    }
+
+    // ---- Chargement : garde, boutique requise, mode édition via ?id= ----
+    let produitExistant = null;
+    const user = await exigerConnexion("../connexion.html");
+    if (user) {
+      try {
+        const boutique = await boutiqueDeProprietaire(user.uid);
+        if (!boutique) {
+          location.replace("boutique.html"); // il faut d'abord une boutique
+        } else {
+          selectCategorie.value = boutique.categorie; // catégorie héritée (§4.2)
+
+          const idProduit = new URLSearchParams(location.search).get("id");
+          if (idProduit) {
+            produitExistant = await produitParId(idProduit);
+            if (!produitExistant || produitExistant.boutiqueId !== boutique.id) {
+              location.replace("index.html");
+            } else {
+              document.title = "Modifier le produit — SUUQ";
+              document.getElementById("titre").textContent = "Modifier le produit";
+              btnEnvoyer.textContent = "Enregistrer les modifications";
+              form.nom.value = produitExistant.nom;
+              form.prix.value = produitExistant.prix;
+              selectCategorie.value = produitExistant.categorie;
+              form.description.value = produitExistant.description || "";
+              form.tags.value = (produitExistant.tags || []).join(", ");
+              document.getElementById("disponible").checked = produitExistant.disponible;
+              photos = (produitExistant.photos || []).map((url) => ({ url, apercu: urlMiniature(url) }));
+              rendrePhotos();
+            }
+          }
+
+          if (!idProduit || (produitExistant && produitExistant.boutiqueId === boutique.id)) {
+            chargement.hidden = true;
+            form.hidden = false;
+          }
+
+          // ---- Soumission ----
+          form.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            message.hidden = true;
+
+            const prix = Number(form.prix.value);
+            if (!Number.isInteger(prix) || prix <= 0) {
+              afficherErreur("Prix invalide : un nombre entier de FDJ, supérieur à zéro.");
+              return;
+            }
+            if (photos.length === 0) {
+              afficherErreur("Ajoutez au moins une photo.");
+              return;
+            }
+            let tags;
+            try {
+              tags = collecterTags();
+            } catch (erreur) {
+              afficherErreur(erreur.message);
+              return;
+            }
+
+            btnEnvoyer.disabled = true;
+            btnEnvoyer.textContent = "Enregistrement…";
+            try {
+              // Upload séquentiel des nouvelles photos (3G : une à la fois),
+              // les photos déjà en ligne gardent leur URL.
+              const urls = [];
+              for (const photo of photos) {
+                urls.push(photo.url || await uploaderImage(photo.blob));
+              }
+
+              const donnees = {
+                nom: form.nom.value.trim(),
+                description: form.description.value.trim(),
+                prix,
+                categorie: selectCategorie.value,
+                tags,
+                photos: urls,
+                thumbUrl: urlMiniature(urls[0]),
+                disponible: document.getElementById("disponible").checked,
+              };
+
+              if (produitExistant) {
+                await majProduit(produitExistant.id, donnees);
+              } else {
+                await creerProduit(user, boutique.id, donnees);
+              }
+              location.replace("index.html");
+            } catch (erreur) {
+              let texte = "L'enregistrement a échoué. Vérifiez votre connexion et réessayez.";
+              if (erreur?.code === "delai-depasse" || erreur?.code === "upload-echec") texte = erreur.message;
+              if (erreur?.code === "permission-denied") {
+                texte = "Enregistrement refusé par le serveur. Vérifiez que les règles de sécurité Firestore sont en place.";
+              }
+              afficherErreur(texte);
+              btnEnvoyer.disabled = false;
+              btnEnvoyer.textContent = produitExistant ? "Enregistrer les modifications" : "Ajouter le produit";
+            }
+          });
+        }
+      } catch {
+        chargement.hidden = true;
+        document.getElementById("erreur-chargement").hidden = false;
+      }
+    }
+  </script>
 
 </body>
 </html>

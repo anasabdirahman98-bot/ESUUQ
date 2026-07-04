@@ -1,6 +1,21 @@
-// Rendus d'interface réutilisables : chips, squelettes de chargement.
-// Jalon M0 : chips et squelettes. Les rendus de cartes réelles (produit,
-// boutique) et les toasts arrivent au jalon M3.
+// Rendus d'interface réutilisables : chips, squelettes, toasts.
+// Les rendus de cartes réelles (produit, boutique) arrivent au jalon M3.
+
+// Toast furtif en bas d'écran (confirmations, erreurs légères).
+let minuteurToast = null;
+export function afficherToast(texte) {
+  let toast = document.querySelector(".toast");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.className = "toast";
+    toast.setAttribute("role", "status");
+    document.body.append(toast);
+  }
+  toast.textContent = texte;
+  toast.classList.add("visible");
+  clearTimeout(minuteurToast);
+  minuteurToast = setTimeout(() => toast.classList.remove("visible"), 2600);
+}
 
 // Crée une chip de catégorie (bouton pilule).
 export function creerChip(libelle) {

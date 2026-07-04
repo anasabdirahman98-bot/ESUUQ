@@ -8,6 +8,8 @@ import {
   doc,
   getDoc,
   setDoc,
+  updateDoc,
+  deleteDoc,
   getDocs,
   query,
   where,
@@ -122,4 +124,67 @@ export async function reparerDocumentPrive(user, boutiqueId) {
   if (!instantane.exists()) {
     await avecDelai(setDoc(ref, documentPrive(user)));
   }
+}
+
+// Mise à jour de la boutique par son propriétaire. Ne JAMAIS passer statut,
+// badgeVerifie, stats ni ownerUid (refusés par les règles §7.1). Le slug
+// n'est pas régénéré au renommage : les liens déjà partagés restent valides.
+export async function majBoutique(boutiqueId, champs) {
+  const maj = { ...champs, majLe: serverTimestamp() };
+  if (maj.nom !== undefined) maj.nomLower = normaliser(maj.nom);
+  await avecDelai(updateDoc(doc(db, "boutiques", boutiqueId), maj));
+}
+
+// ---- Produits (jalon M2) ----
+
+// Produits d'une boutique, plus récents d'abord. Tri côté client pour
+// éviter un index composite (un commerçant a peu de produits).
+export async function produitsDeBoutique(boutiqueId) {
+  const resultat = await avecDelai(
+    getDocs(query(collection(db, "produits"), where("boutiqueId", "==", boutiqueId)))
+  );
+  const liste = resultat.docs.map((d) => ({ id: d.id, ...d.data() }));
+  liste.sort((a, b) => (b.creeLe?.seconds || 0) - (a.creeLe?.seconds || 0));
+  return liste;
+}
+
+export async function produitParId(produitId) {
+  const instantane = await avecDelai(getDoc(doc(db, "produits", produitId)));
+  return instantane.exists() ? { id: instantane.id, ...instantane.data() } : null;
+}
+
+// Création d'un produit — visible: true et stats à zéro imposés par les
+// règles §7.1 (1 à 3 photos exigées).
+export async function creerProduit(user, boutiqueId, donnees) {
+  const ref = doc(collection(db, "produits"));
+  await avecDelai(setDoc(ref, {
+    boutiqueId,
+    ownerUid: user.uid,
+    nom: donnees.nom,
+    nomLower: normaliser(donnees.nom),
+    description: donnees.description,
+    prix: donnees.prix, // entier FDJ > 0
+    categorie: donnees.categorie,
+    tags: donnees.tags, // max 5, normalisés
+    photos: donnees.photos, // 1 à 3 URLs Cloudinary (secure_url)
+    thumbUrl: donnees.thumbUrl, // transformation w_200 de la 1re photo
+    disponible: donnees.disponible,
+    visible: true,
+    stats: { vues: 0, clicsWhatsapp: 0 },
+    creeLe: serverTimestamp(),
+    majLe: serverTimestamp(),
+  }));
+  return ref.id;
+}
+
+// Mise à jour d'un produit par son propriétaire. Ne JAMAIS passer visible,
+// stats, ownerUid ni boutiqueId (refusés par les règles §7.1).
+export async function majProduit(produitId, champs) {
+  const maj = { ...champs, majLe: serverTimestamp() };
+  if (maj.nom !== undefined) maj.nomLower = normaliser(maj.nom);
+  await avecDelai(updateDoc(doc(db, "produits", produitId), maj));
+}
+
+export async function supprimerProduit(produitId) {
+  await avecDelai(deleteDoc(doc(db, "produits", produitId)));
 }

@@ -25,12 +25,14 @@ python3 -m http.server 8000
 |---|---|---|
 | M0 | Squelette, CSS de base, constantes, manifest, config Firebase, accueil statique | ✅ Fait |
 | M1 | Auth + création de boutique + garde des pages `espace/` | ✅ Fait |
-| M2 | CRUD produits, compression images, tableau de bord | ⏳ À venir |
+| M2 | CRUD produits, compression images, tableau de bord | ✅ Fait |
 | M3 | Vitrine publique : recherche, fiches, WhatsApp, favoris, compteurs | ⏳ À venir |
 | M4 | Espace admin : validation, badge vérifié, modération | ⏳ À venir |
 | M5 | Service worker, hors-ligne, audit performance, déploiement | ⏳ À venir |
 
-Le cahier des charges complet est dans [`docs/cahier-des-charges-phase1.md`](docs/cahier-des-charges-phase1.md).
+Le cahier des charges complet est dans [`docs/cahier-des-charges-phase1.md`](docs/cahier-des-charges-phase1.md),
+amendé par [`docs/avenant-1-cloudinary.md`](docs/avenant-1-cloudinary.md) (référentiel 1.2 —
+en cas de conflit, l'avenant prévaut).
 
 ### Décisions prises avec Chen
 
@@ -50,14 +52,25 @@ Le cahier des charges complet est dans [`docs/cahier-des-charges-phase1.md`](doc
   compris) doit passer par le helper `avecDelai()` de `js/db.js` (15 s → erreur
   `delai-depasse`, message « Connexion instable, réessayez. »). Jamais d'opération
   sans feedback — c'est ce garde-fou qui a permis le diagnostic ci-dessus.
+- **Images sur Cloudinary (avenant n°1, M2)** : pas de plan Blaze en Phase 1, donc
+  pas de Firebase Storage. Upload non signé vers Cloudinary, confiné dans
+  `js/images.js` + `js/cloudinary-config.js` (aucun autre module ne connaît
+  Cloudinary). Miniatures = transformations d'URL (`w_200,h_200,c_fill,q_auto,f_auto`),
+  plus aucune miniature uploadée. `firebase/storage.rules` supprimé (§7.2 obsolète).
+  **Écart au §4 de l'avenant (note Chen)** : le garde-fou serveur
+  `c_limit,w_1200,h_1200` n'a PAS pu être configuré (champ introuvable dans la
+  nouvelle console Cloudinary) — la compression client 800 px est la SEULE limite
+  active. Le reste du §4 est en place (Unsigned, folder `suuq`, IDs indevinables).
 
-## Mise en route Firebase (à faire une fois, console Firebase)
+## Mise en route (à faire une fois)
 
-1. **Authentication** → Sign-in method → activer **E-mail/Mot de passe**.
-2. **Firestore Database** → créer la base (mode production) → onglet *Règles* →
-   coller le contenu de [`firebase/firestore.rules`](firebase/firestore.rules) → Publier.
-3. **Storage** → démarrer → onglet *Règles* →
-   coller le contenu de [`firebase/storage.rules`](firebase/storage.rules) → Publier.
+1. **Firebase → Authentication** → Sign-in method → activer **E-mail/Mot de passe**.
+2. **Firebase → Firestore Database** : la base du projet est la base **nommée `default`**
+   (voir Décisions) → onglet *Règles* → coller le contenu de
+   [`firebase/firestore.rules`](firebase/firestore.rules) → Publier (sur la base `default`).
+3. **Cloudinary** : preset `suuq_produits` en mode **Unsigned**, folder `suuq`,
+   formats jpg/png/webp (déjà configuré par Chen — voir avenant §4 et l'écart
+   documenté dans Décisions).
 4. (Recommandé) **Authentication → Settings → Domaines autorisés** : vérifier que
    `anasabdirahman98-bot.github.io` et `localhost` figurent dans la liste.
 
@@ -76,7 +89,9 @@ Le cahier des charges complet est dans [`docs/cahier-des-charges-phase1.md`](doc
 │   ├── boutique.html          # Créer / modifier ma boutique
 │   └── produit.html           # Ajouter / modifier un produit
 ├── css/                       # variables.css, base.css, composants.css
-├── js/                        # config Firebase, constantes, modules (db, auth, recherche, images, ui)
+├── js/                        # configs (Firebase, Cloudinary), constantes, modules (db, auth, recherche, images, ui)
+├── firebase/                  # firestore.rules (à coller dans la console)
+├── docs/                      # cahier des charges + avenant n°1 (Cloudinary)
 ├── assets/                    # icônes PWA, logo, placeholder produit
 └── manifest.json
 ```

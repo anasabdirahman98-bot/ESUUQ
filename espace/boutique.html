@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#D95F18">
-  <title>Créer ma boutique — SUUQ</title>
+  <title>Ma boutique — SUUQ</title>
   <link rel="manifest" href="../manifest.json">
   <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="../css/variables.css">
@@ -28,7 +28,7 @@
     </div>
 
     <form class="formulaire" id="form-boutique" hidden>
-      <h1>Créer ma boutique</h1>
+      <h1 id="titre">Créer ma boutique</h1>
 
       <div class="message" id="message" role="alert" hidden></div>
 
@@ -95,7 +95,7 @@
         <img class="apercu-image apercu-large" id="apercu-couverture" alt="Aperçu de la couverture" hidden>
       </div>
 
-      <button class="btn btn-primaire btn-large" type="submit">Créer ma boutique</button>
+      <button class="btn btn-primaire btn-large" type="submit" id="btn-envoyer">Créer ma boutique</button>
     </form>
 
     <div class="page-attente" id="confirmation" hidden>
@@ -109,17 +109,19 @@
   </main>
 
   <script type="module">
-    // Création de boutique (jalon M1). L'édition arrive avec le tableau de bord (M2).
+    // Création (M1) et modification (M2) de la boutique.
+    // Uploads logo/couverture → Cloudinary (avenant n°1, correction
+    // rétroactive M1 : Firebase Storage n'a jamais été provisionné).
     import { exigerConnexion } from "../js/auth.js";
-    import { boutiqueDeProprietaire, creerBoutique } from "../js/db.js";
-    import { compresserLogo, compresserPhoto } from "../js/images.js";
-    import { uploaderImage } from "../js/images.js";
+    import { boutiqueDeProprietaire, creerBoutique, majBoutique } from "../js/db.js";
+    import { compresserLogo, compresserPhoto, uploaderImage, urlTransformee } from "../js/images.js";
     import { CATEGORIES, QUARTIERS } from "../js/constantes.js";
 
     const chargement = document.getElementById("chargement");
     const form = document.getElementById("form-boutique");
     const confirmation = document.getElementById("confirmation");
     const message = document.getElementById("message");
+    const btnEnvoyer = document.getElementById("btn-envoyer");
 
     // ---- Listes déroulantes depuis les constantes ----
     function remplirListe(select, valeurs, invite) {
@@ -173,13 +175,14 @@
     // Bouton "Renseigner plus tard" : horaires = null à la soumission.
     let horairesPlusTard = false;
     const btnPlusTard = document.getElementById("btn-horaires-plus-tard");
-    btnPlusTard.addEventListener("click", () => {
-      horairesPlusTard = !horairesPlusTard;
-      listeJours.hidden = horairesPlusTard;
-      btnPlusTard.textContent = horairesPlusTard
+    function reglerHorairesPlusTard(actif) {
+      horairesPlusTard = actif;
+      listeJours.hidden = actif;
+      btnPlusTard.textContent = actif
         ? "Horaires laissés pour plus tard — cliquez pour les renseigner maintenant"
         : "Renseigner plus tard";
-    });
+    }
+    btnPlusTard.addEventListener("click", () => reglerHorairesPlusTard(!horairesPlusTard));
 
     function collecterHoraires() {
       if (horairesPlusTard) return null;
@@ -201,27 +204,39 @@
       return horaires;
     }
 
+    function appliquerHoraires(horaires) {
+      for (const [cle] of JOURS) {
+        const jour = horaires[cle];
+        if (!jour) continue;
+        const ligne = document.getElementById("jour-" + cle);
+        const caseOuvert = ligne.querySelector("input[type=checkbox]");
+        caseOuvert.checked = jour.ouvert;
+        ligne.classList.toggle("ferme", !jour.ouvert);
+        const champs = [...ligne.querySelectorAll("input[type=time]")];
+        [jour.de, jour.a, jour.de2, jour.a2].forEach((v, i) => { champs[i].value = v || ""; });
+      }
+    }
+
     // ---- Position GPS (optionnelle) ----
     let geo = null;
     const gpsStatut = document.getElementById("gps-statut");
     const btnGpsEffacer = document.getElementById("btn-gps-effacer");
+    function afficherGeo() {
+      gpsStatut.textContent = geo ? `Position enregistrée : ${geo.lat}, ${geo.lng}` : "";
+      btnGpsEffacer.hidden = !geo;
+    }
     document.getElementById("btn-gps").addEventListener("click", () => {
       gpsStatut.textContent = "Recherche de votre position…";
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           geo = { lat: +pos.coords.latitude.toFixed(6), lng: +pos.coords.longitude.toFixed(6) };
-          gpsStatut.textContent = `Position enregistrée : ${geo.lat}, ${geo.lng}`;
-          btnGpsEffacer.hidden = false;
+          afficherGeo();
         },
         () => { gpsStatut.textContent = "Impossible d'obtenir la position. Vérifiez l'autorisation de localisation."; },
         { enableHighAccuracy: true, timeout: 10000 }
       );
     });
-    btnGpsEffacer.addEventListener("click", () => {
-      geo = null;
-      gpsStatut.textContent = "";
-      btnGpsEffacer.hidden = true;
-    });
+    btnGpsEffacer.addEventListener("click", () => { geo = null; afficherGeo(); });
 
     // ---- Logo et couverture : compression immédiate + aperçu ----
     let blobLogo = null;
@@ -255,19 +270,41 @@
       message.scrollIntoView({ block: "nearest" });
     }
 
-    // ---- Garde de page + anti double boutique ----
+    // ---- Garde de page + mode : création ou édition ----
+    let boutiqueExistante = null;
     const user = await exigerConnexion("../connexion.html");
     if (user) {
       try {
-        const existante = await boutiqueDeProprietaire(user.uid);
-        if (existante) {
-          location.replace("index.html"); // une seule boutique par compte
-        } else {
-          chargement.hidden = true;
-          form.hidden = false;
+        boutiqueExistante = await boutiqueDeProprietaire(user.uid);
+        if (boutiqueExistante) {
+          // Mode édition ("Modifier ma boutique", §4.2)
+          document.title = "Modifier ma boutique — SUUQ";
+          document.getElementById("titre").textContent = "Modifier ma boutique";
+          btnEnvoyer.textContent = "Enregistrer les modifications";
+          const b = boutiqueExistante;
+          form.nom.value = b.nom;
+          form.categorie.value = b.categorie;
+          form.description.value = b.description || "";
+          form.quartier.value = b.quartier;
+          form.repere.value = b.repere;
+          form.whatsapp.value = (b.whatsapp || "").replace(/^253/, "");
+          if (b.geo) { geo = b.geo; afficherGeo(); }
+          if (b.horaires) appliquerHoraires(b.horaires);
+          else reglerHorairesPlusTard(true);
+          if (b.logoUrl) {
+            const apercu = document.getElementById("apercu-logo");
+            apercu.src = urlTransformee(b.logoUrl, "w_200,q_auto,f_auto");
+            apercu.hidden = false;
+          }
+          if (b.couvertureUrl) {
+            const apercu = document.getElementById("apercu-couverture");
+            apercu.src = urlTransformee(b.couvertureUrl, "w_400,q_auto,f_auto");
+            apercu.hidden = false;
+          }
         }
+        chargement.hidden = true;
+        form.hidden = false;
       } catch {
-        // Réseau en panne ou trop lent : on rend la main au lieu de bloquer.
         chargement.hidden = true;
         document.getElementById("erreur-chargement").hidden = false;
       }
@@ -292,16 +329,10 @@
         return;
       }
 
-      const bouton = form.querySelector("button[type=submit]");
-      bouton.disabled = true;
-      bouton.textContent = "Création en cours…";
+      btnEnvoyer.disabled = true;
+      btnEnvoyer.textContent = boutiqueExistante ? "Enregistrement…" : "Création en cours…";
       try {
-        let logoUrl = null;
-        let couvertureUrl = null;
-        if (blobLogo) logoUrl = await uploaderImage(blobLogo, user.uid, `logo-${Date.now()}.jpg`);
-        if (blobCouverture) couvertureUrl = await uploaderImage(blobCouverture, user.uid, `couverture-${Date.now()}.jpg`);
-
-        await creerBoutique(user, {
+        const donnees = {
           nom: form.nom.value.trim(),
           description: form.description.value.trim(),
           categorie: form.categorie.value,
@@ -310,22 +341,33 @@
           geo,
           whatsapp: "253" + numero,
           horaires,
-          logoUrl,
-          couvertureUrl,
-        });
+        };
 
-        form.hidden = true;
-        confirmation.hidden = false;
-        window.scrollTo(0, 0);
+        if (boutiqueExistante) {
+          // Nouveau fichier choisi → nouvelle URL ; sinon on garde l'existante.
+          if (blobLogo) donnees.logoUrl = await uploaderImage(blobLogo);
+          if (blobCouverture) donnees.couvertureUrl = await uploaderImage(blobCouverture);
+          await majBoutique(boutiqueExistante.id, donnees);
+          location.replace("index.html");
+        } else {
+          donnees.logoUrl = blobLogo ? await uploaderImage(blobLogo) : null;
+          donnees.couvertureUrl = blobCouverture ? await uploaderImage(blobCouverture) : null;
+          await creerBoutique(user, donnees);
+          form.hidden = true;
+          confirmation.hidden = false;
+          window.scrollTo(0, 0);
+        }
       } catch (erreur) {
-        let texte = "La création a échoué. Vérifiez votre connexion et réessayez.";
-        if (erreur?.code === "delai-depasse") texte = erreur.message;
+        let texte = boutiqueExistante
+          ? "L'enregistrement a échoué. Vérifiez votre connexion et réessayez."
+          : "La création a échoué. Vérifiez votre connexion et réessayez.";
+        if (erreur?.code === "delai-depasse" || erreur?.code === "upload-echec") texte = erreur.message;
         if (erreur?.code === "permission-denied") {
-          texte = "Création refusée par le serveur. Vérifiez que les règles de sécurité Firestore sont bien en place.";
+          texte = "Opération refusée par le serveur. Vérifiez que les règles de sécurité Firestore sont bien en place.";
         }
         afficherErreur(texte);
-        bouton.disabled = false;
-        bouton.textContent = "Créer ma boutique";
+        btnEnvoyer.disabled = false;
+        btnEnvoyer.textContent = boutiqueExistante ? "Enregistrer les modifications" : "Créer ma boutique";
       }
     });
   </script>

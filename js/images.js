@@ -1,16 +1,19 @@
-// Compression d'images côté client (canvas → JPEG) + upload Storage (§8.3).
-// Poids final attendu : 40–120 Ko par photo. Les fichiers non-image sont refusés.
-import {
-  getStorage,
-  ref as refStorage,
-  uploadBytes,
-  getDownloadURL,
-} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-storage.js";
-import { app, avecDelai } from "./db.js";
-
-const storage = getStorage(app);
+// Compression d'images côté client (canvas → JPEG) + upload Cloudinary.
+// Avenant n°1 : Cloudinary remplace Firebase Storage en Phase 1 (pas de plan
+// Blaze). TOUT le code d'upload est confiné ici + cloudinary-config.js —
+// aucun autre module ne doit connaître Cloudinary (migration future, §7).
+//
+// AVERTISSEMENT (note Chen, juillet 2026) : le garde-fou serveur du preset
+// « incoming transformation c_limit,w_1200,h_1200 » N'EST PAS configuré
+// (champ introuvable dans la nouvelle console Cloudinary). Il n'existe donc
+// AUCUN plafond côté serveur : la compression client ci-dessous (800 px max)
+// est la SEULE limite active. Ne pas la contourner.
+import { CLOUDINARY } from "./cloudinary-config.js";
+import { avecDelai } from "./db.js";
 
 // Compresse un fichier image : redimensionne (côté max) puis exporte en JPEG.
+// Plus AUCUNE miniature générée côté client (avenant §3.1) : les miniatures
+// sont des transformations d'URL (voir urlMiniature ci-dessous).
 export function compresserImage(fichier, coteMax, qualite) {
   return new Promise((resoudre, rejeter) => {
     if (!fichier || !fichier.type.startsWith("image/")) {
@@ -40,16 +43,50 @@ export function compresserImage(fichier, coteMax, qualite) {
   });
 }
 
-// Upload dans uploads/{uid}/{fichier} (règles Storage §7.2) → URL publique.
-// Mêmes garde-fous que Firestore : jamais d'attente infinie (délai élargi
-// à 30 s pour l'upload lui-même, ~100 Ko sur 3G lente).
-export async function uploaderImage(blob, uid, nomFichier) {
-  const emplacement = refStorage(storage, `uploads/${uid}/${nomFichier}`);
-  await avecDelai(uploadBytes(emplacement, blob, { contentType: "image/jpeg" }), 30000);
-  return avecDelai(getDownloadURL(emplacement));
+// Raccourcis métier (avenant §3.1)
+export const compresserPhoto = (f) => compresserImage(f, 800, 0.72); // produit / couverture
+export const compresserLogo = (f) => compresserImage(f, 200, 0.72);
+
+// Upload non signé vers Cloudinary (avenant §3.2). Retourne secure_url —
+// c'est la valeur stockée dans photos[], logoUrl et couvertureUrl.
+// Jamais d'attente infinie : 30 s max, puis erreur française propre.
+export async function uploaderImage(blob) {
+  const donnees = new FormData();
+  donnees.append("file", blob);
+  donnees.append("upload_preset", CLOUDINARY.uploadPreset);
+
+  let reponse;
+  try {
+    reponse = await avecDelai(
+      fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY.cloudName}/image/upload`, {
+        method: "POST",
+        body: donnees,
+      }),
+      30000
+    );
+  } catch (erreur) {
+    if (erreur?.code === "delai-depasse") throw erreur;
+    throw erreurUpload();
+  }
+  if (!reponse.ok) throw erreurUpload();
+  const json = await reponse.json();
+  if (!json.secure_url) throw erreurUpload();
+  return json.secure_url;
 }
 
-// Raccourcis métier (§8.3)
-export const compresserPhoto = (f) => compresserImage(f, 800, 0.72); // produit / couverture
-export const compresserMiniature = (f) => compresserImage(f, 200, 0.6); // thumbUrl (M2)
-export const compresserLogo = (f) => compresserImage(f, 200, 0.72);
+function erreurUpload() {
+  const erreur = new Error("L'envoi de l'image a échoué. Vérifiez votre connexion et réessayez.");
+  erreur.code = "upload-echec";
+  return erreur;
+}
+
+// Insère une transformation juste après "/upload/" dans une URL Cloudinary
+// (avenant §3.3). q_auto,f_auto sert WebP/AVIF aux navigateurs compatibles.
+export function urlTransformee(url, transfo) {
+  return url.replace("/upload/", `/upload/${transfo}/`);
+}
+
+// Miniature des grilles/listes (carrée, cohérente avec les cartes 1:1 du §9.3)
+export const urlMiniature = (url) => urlTransformee(url, "w_200,h_200,c_fill,q_auto,f_auto");
+// Affichage fiche produit (M3)
+export const urlFiche = (url) => urlTransformee(url, "w_800,q_auto,f_auto");

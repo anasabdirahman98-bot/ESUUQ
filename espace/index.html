@@ -32,29 +32,116 @@
       <div class="bandeau-statut" id="bandeau"></div>
       <h1 id="nom-boutique"></h1>
       <p class="accroche" id="infos-boutique"></p>
-      <p class="etat-vide">🛠️ La gestion des produits, les statistiques et le partage
-         de votre boutique arrivent au jalon M2.</p>
+
+      <div class="grille-compteurs">
+        <div class="compteur"><span class="valeur" id="c-vues">–</span><span class="libelle">Vues boutique</span></div>
+        <div class="compteur"><span class="valeur" id="c-clics">–</span><span class="libelle">Clics WhatsApp</span></div>
+        <div class="compteur"><span class="valeur" id="c-produits">–</span><span class="libelle">Produits</span></div>
+      </div>
+
+      <div class="actions-tdb">
+        <a class="btn btn-primaire" href="produit.html">➕ Ajouter un produit</a>
+        <a class="btn btn-secondaire" href="boutique.html">Modifier ma boutique</a>
+        <button class="btn btn-secondaire" id="btn-partager" type="button">📤 Partager ma boutique</button>
+      </div>
+
+      <h2>Mes produits</h2>
+      <div id="liste-produits"></div>
+      <p class="etat-vide" id="vide-produits" hidden>
+        Aucun produit pour l'instant.<br>Ajoutez votre premier produit !
+      </p>
     </div>
 
   </main>
 
   <script type="module">
-    // Tableau de bord commerçant — version minimale M1 (garde + statut).
-    // Compteurs, liste produits et partage arrivent au jalon M2.
+    // Tableau de bord commerçant (jalon M2) : compteurs, partage,
+    // liste des produits avec interrupteur Disponible/Rupture.
     import { exigerConnexion, deconnecter } from "../js/auth.js";
-    import { boutiqueDeProprietaire, reparerDocumentPrive } from "../js/db.js";
+    import {
+      boutiqueDeProprietaire, reparerDocumentPrive,
+      produitsDeBoutique, majProduit, supprimerProduit,
+    } from "../js/db.js";
+    import { formatPrix } from "../js/constantes.js";
+    import { afficherToast } from "../js/ui.js";
 
     document.getElementById("btn-deconnexion").addEventListener("click", async () => {
       await deconnecter();
       location.replace("../index.html");
     });
 
+    const listeEl = document.getElementById("liste-produits");
+    const videEl = document.getElementById("vide-produits");
+    const compteurProduits = document.getElementById("c-produits");
+
+    function majEtatListe() {
+      compteurProduits.textContent = listeEl.children.length;
+      videEl.hidden = listeEl.children.length > 0;
+    }
+
+    function ligneProduit(produit) {
+      const ligne = document.createElement("div");
+      ligne.className = "ligne-produit" + (produit.disponible ? "" : " indisponible");
+      ligne.innerHTML = `
+        <img alt="" loading="lazy">
+        <div class="infos">
+          <div class="nom"></div>
+          <div class="prix"></div>
+        </div>
+        <label class="interrupteur" aria-label="Disponible / Rupture">
+          <input type="checkbox">
+          <span class="glissiere"></span>
+        </label>
+        <div class="actions">
+          <a class="btn btn-secondaire btn-petit">Modifier</a>
+          <button class="btn btn-secondaire btn-petit btn-danger" type="button">Supprimer</button>
+        </div>`;
+      ligne.querySelector("img").src = produit.thumbUrl || "../assets/placeholder-produit.svg";
+      ligne.querySelector(".nom").textContent = produit.nom;
+      ligne.querySelector(".prix").textContent = formatPrix(produit.prix);
+      ligne.querySelector("a.btn-petit").href = "produit.html?id=" + produit.id;
+
+      // Interrupteur Disponible/Rupture : mise à jour immédiate, retour
+      // arrière si le serveur refuse.
+      const interrupteur = ligne.querySelector("input[type=checkbox]");
+      interrupteur.checked = produit.disponible;
+      interrupteur.addEventListener("change", async () => {
+        const disponible = interrupteur.checked;
+        ligne.classList.toggle("indisponible", !disponible);
+        try {
+          await majProduit(produit.id, { disponible });
+        } catch {
+          interrupteur.checked = !disponible;
+          ligne.classList.toggle("indisponible", disponible);
+          afficherToast("Échec de la mise à jour. Réessayez.");
+        }
+      });
+
+      // Suppression avec confirmation. L'image Cloudinary devient orpheline :
+      // accepté en Phase 1 (avenant §5.1).
+      const btnSupprimer = ligne.querySelector(".btn-danger");
+      btnSupprimer.addEventListener("click", async () => {
+        if (!confirm(`Supprimer « ${produit.nom} » ? Cette action est définitive.`)) return;
+        btnSupprimer.disabled = true;
+        try {
+          await supprimerProduit(produit.id);
+          ligne.remove();
+          majEtatListe();
+        } catch {
+          btnSupprimer.disabled = false;
+          afficherToast("Suppression impossible. Réessayez.");
+        }
+      });
+
+      return ligne;
+    }
+
     const user = await exigerConnexion("../connexion.html");
     if (user) {
       try {
         const boutique = await boutiqueDeProprietaire(user.uid);
         if (!boutique) {
-          location.replace("boutique.html"); // pas encore de boutique : formulaire de création
+          location.replace("boutique.html"); // pas encore de boutique
         } else {
           const BANDEAUX = {
             en_attente: ["bandeau-attente", "⏳ En attente de validation"],
@@ -68,16 +155,34 @@
           document.getElementById("nom-boutique").textContent = boutique.nom;
           document.getElementById("infos-boutique").textContent =
             `${boutique.categorie} · ${boutique.quartier}`;
+          document.getElementById("c-vues").textContent = boutique.stats?.vues ?? 0;
+          document.getElementById("c-clics").textContent = boutique.stats?.clicsWhatsapp ?? 0;
+
+          // Partage de la page publique — canal d'acquisition clé (§4.2) :
+          // le commerçant diffuse sa page sur ses statuts WhatsApp.
+          document.getElementById("btn-partager").addEventListener("click", async () => {
+            const url = new URL(`../boutique.html?s=${boutique.slug}`, location.href).href;
+            try {
+              if (navigator.share) {
+                await navigator.share({ title: boutique.nom, text: `Découvrez ${boutique.nom} sur SUUQ`, url });
+              } else {
+                await navigator.clipboard.writeText(url);
+                afficherToast("Lien copié !");
+              }
+            } catch { /* partage annulé par l'utilisateur */ }
+          });
+
+          const produits = await produitsDeBoutique(boutique.id);
+          for (const produit of produits) listeEl.append(ligneProduit(produit));
+          majEtatListe();
+
           document.getElementById("chargement").hidden = true;
           document.getElementById("contenu").hidden = false;
 
-          // Réparation silencieuse d'une création interrompue entre les deux
-          // écritures (boutique créée, document privé manquant). Les échecs
-          // sont ignorés : nouvelle tentative au prochain chargement.
+          // Réparation silencieuse d'une création interrompue (voir db.js).
           reparerDocumentPrive(user, boutique.id).catch(() => {});
         }
       } catch {
-        // Réseau en panne ou trop lent : on rend la main au lieu de bloquer.
         document.getElementById("chargement").hidden = true;
         document.getElementById("erreur-chargement").hidden = false;
       }

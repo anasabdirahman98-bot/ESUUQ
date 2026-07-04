@@ -422,6 +422,151 @@
 }
 .apercu-image.apercu-large { width: 100%; height: 140px; }
 
+/* ---- Compteurs du tableau de bord ---- */
+.grille-compteurs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 16px 0;
+}
+.compteur {
+  display: grid;
+  gap: 2px;
+  padding: 12px 8px;
+  text-align: center;
+  background: var(--suuq-surface);
+  border: 1px solid var(--suuq-bordure);
+  border-radius: var(--suuq-radius);
+}
+.compteur .valeur {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--suuq-primaire);
+}
+.compteur .libelle {
+  font-size: 12px;
+  color: var(--suuq-texte-2);
+}
+
+/* ---- Actions du tableau de bord ---- */
+.actions-tdb {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 28px;
+}
+
+/* ---- Ligne produit (liste du tableau de bord) ---- */
+#liste-produits {
+  display: grid;
+  gap: 8px;
+}
+.ligne-produit {
+  display: grid;
+  grid-template-columns: 56px 1fr auto;
+  grid-template-areas:
+    "img infos switch"
+    "img actions actions";
+  gap: 6px 10px;
+  align-items: center;
+  padding: 10px;
+  background: var(--suuq-surface);
+  border: 1px solid var(--suuq-bordure);
+  border-radius: var(--suuq-radius);
+}
+.ligne-produit img {
+  grid-area: img;
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  object-fit: cover;
+  background: var(--suuq-fond);
+}
+.ligne-produit .infos {
+  grid-area: infos;
+  min-width: 0;
+}
+.ligne-produit .infos .nom {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ligne-produit .infos .prix {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--suuq-primaire);
+}
+.ligne-produit .interrupteur { grid-area: switch; }
+.ligne-produit .actions {
+  grid-area: actions;
+  display: flex;
+  gap: 8px;
+}
+.ligne-produit.indisponible img,
+.ligne-produit.indisponible .infos { opacity: .5; }
+
+.btn-petit {
+  min-height: 44px;
+  padding: 6px 12px;
+  font-size: 13px;
+  border-radius: 10px;
+}
+.btn-danger { color: var(--suuq-rouge); }
+
+/* ---- Grille de photos du formulaire produit ---- */
+.grille-photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-top: 6px;
+}
+.photo-item { position: relative; }
+.photo-item img {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border: 1px solid var(--suuq-bordure);
+  border-radius: 10px;
+  background: var(--suuq-fond);
+}
+.btn-retirer {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  background: var(--suuq-rouge);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: var(--suuq-ombre);
+}
+
+/* ---- Toast furtif ---- */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 50;
+  max-width: calc(100vw - 32px);
+  padding: 12px 18px;
+  border-radius: 999px;
+  background: var(--suuq-texte);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 4px 16px rgba(33, 26, 20, .25);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s;
+}
+.toast.visible { opacity: 1; }
+
 /* ---- Bandeau de statut boutique ---- */
 .bandeau-statut {
   margin-bottom: 16px;
