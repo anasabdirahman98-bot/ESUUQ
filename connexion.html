@@ -69,13 +69,18 @@
 
     // Déjà connecté ? On route directement vers l'espace.
     utilisateurCourant().then((user) => {
-      if (user) routerVersEspace(user);
+      if (user) routerVersEspace(user).catch((e) => afficherMessage(messageDe(e), "erreur"));
     });
 
     // Avec boutique → tableau de bord ; sans boutique → création de boutique.
     async function routerVersEspace(user) {
       const boutique = await boutiqueDeProprietaire(user.uid);
       location.replace(boutique ? "espace/index.html" : "espace/boutique.html");
+    }
+
+    // Message français adapté : délai réseau dépassé ou erreur d'auth Firebase.
+    function messageDe(erreur) {
+      return erreur?.code === "delai-depasse" ? erreur.message : traduireErreur(erreur);
     }
 
     function afficherMessage(texte, type) {
@@ -105,7 +110,7 @@
         const cred = await connecter(formConnexion.email.value.trim(), formConnexion.mdp.value);
         await routerVersEspace(cred.user);
       } catch (erreur) {
-        afficherMessage(traduireErreur(erreur), "erreur");
+        afficherMessage(messageDe(erreur), "erreur");
         bouton.disabled = false;
         bouton.textContent = "Se connecter";
       }

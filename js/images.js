@@ -6,7 +6,7 @@ import {
   uploadBytes,
   getDownloadURL,
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-storage.js";
-import { app } from "./db.js";
+import { app, avecDelai } from "./db.js";
 
 const storage = getStorage(app);
 
@@ -41,10 +41,12 @@ export function compresserImage(fichier, coteMax, qualite) {
 }
 
 // Upload dans uploads/{uid}/{fichier} (règles Storage §7.2) → URL publique.
+// Mêmes garde-fous que Firestore : jamais d'attente infinie (délai élargi
+// à 30 s pour l'upload lui-même, ~100 Ko sur 3G lente).
 export async function uploaderImage(blob, uid, nomFichier) {
   const emplacement = refStorage(storage, `uploads/${uid}/${nomFichier}`);
-  await uploadBytes(emplacement, blob, { contentType: "image/jpeg" });
-  return getDownloadURL(emplacement);
+  await avecDelai(uploadBytes(emplacement, blob, { contentType: "image/jpeg" }), 30000);
+  return avecDelai(getDownloadURL(emplacement));
 }
 
 // Raccourcis métier (§8.3)

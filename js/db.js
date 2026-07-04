@@ -3,9 +3,10 @@
 // qui en ont besoin (§8.2 du cahier des charges) — jamais par l'accueil.
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
 import {
-  getFirestore,
+  initializeFirestore,
   collection,
   doc,
+  getDoc,
   setDoc,
   getDocs,
   query,
@@ -17,13 +18,37 @@ import { firebaseConfig } from "./firebase-config.js";
 import { normaliser } from "./constantes.js";
 
 export const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
+
+// RÉGLAGE DE PRODUCTION — ne pas revenir à l'auto-détection.
+// Le réseau de l'opérateur national bloque le streaming WebChannel de
+// Firestore : sans long-polling forcé, les lectures/écritures restent
+// suspendues indéfiniment sur PC comme sur mobile.
+export const db = initializeFirestore(app, { experimentalForceLongPolling: true });
+
+// Toute lecture/écriture Firestore passe par avecDelai() : au-delà du délai,
+// on rejette avec code "delai-depasse" pour rendre la main à l'utilisateur —
+// aucune opération ne doit tourner indéfiniment sans feedback.
+const DELAI_MAX_MS = 15000;
+
+export function avecDelai(promesse, ms = DELAI_MAX_MS) {
+  return new Promise((resoudre, rejeter) => {
+    const minuteur = setTimeout(() => {
+      const erreur = new Error("Connexion instable, réessayez.");
+      erreur.code = "delai-depasse";
+      rejeter(erreur);
+    }, ms);
+    promesse.then(
+      (valeur) => { clearTimeout(minuteur); resoudre(valeur); },
+      (erreur) => { clearTimeout(minuteur); rejeter(erreur); }
+    );
+  });
+}
 
 // Retourne la boutique appartenant à cet utilisateur ({id, ...données}) ou null.
 // C'est aussi la vérification applicative "une boutique par compte" (§7.3).
 export async function boutiqueDeProprietaire(uid) {
-  const resultat = await getDocs(
-    query(collection(db, "boutiques"), where("ownerUid", "==", uid), limit(1))
+  const resultat = await avecDelai(
+    getDocs(query(collection(db, "boutiques"), where("ownerUid", "==", uid), limit(1)))
   );
   if (resultat.empty) return null;
   const premier = resultat.docs[0];
@@ -43,6 +68,11 @@ export function genererSlug(nom) {
   return `${base}-${alea}`;
 }
 
+// Contenu du document privé (recréé à l'identique par la réparation ci-dessous).
+function documentPrive(user) {
+  return { email: user.email, telPersonnel: null, notesAdmin: null };
+}
+
 // Crée la boutique (statut "en_attente") puis son document privé.
 //
 // IMPÉRATIF (§7.3) : deux écritures SÉQUENTIELLES (deux await distincts).
@@ -53,7 +83,7 @@ export function genererSlug(nom) {
 export async function creerBoutique(user, donnees) {
   const ref = doc(collection(db, "boutiques"));
 
-  await setDoc(ref, {
+  await avecDelai(setDoc(ref, {
     ownerUid: user.uid,
     nom: donnees.nom,
     nomLower: normaliser(donnees.nom),
@@ -72,13 +102,20 @@ export async function creerBoutique(user, donnees) {
     stats: { vues: 0, clicsWhatsapp: 0 },
     creeLe: serverTimestamp(),
     majLe: serverTimestamp(),
-  });
+  }));
 
-  await setDoc(doc(db, "boutiques_prive", ref.id), {
-    email: user.email,
-    telPersonnel: null,
-    notesAdmin: null,
-  });
+  await avecDelai(setDoc(doc(db, "boutiques_prive", ref.id), documentPrive(user)));
 
   return ref.id;
+}
+
+// Répare une création interrompue entre les deux écritures : si la boutique
+// existe mais pas son document privé, on le recrée. Appelé silencieusement
+// au chargement du tableau de bord.
+export async function reparerDocumentPrive(user, boutiqueId) {
+  const ref = doc(db, "boutiques_prive", boutiqueId);
+  const instantane = await avecDelai(getDoc(ref));
+  if (!instantane.exists()) {
+    await avecDelai(setDoc(ref, documentPrive(user)));
+  }
 }

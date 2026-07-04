@@ -21,6 +21,12 @@
 
     <p id="chargement" class="etat-vide">Chargement…</p>
 
+    <div class="page-attente" id="erreur-chargement" hidden>
+      <p class="pictogramme">📶</p>
+      <p>Connexion instable, réessayez.</p>
+      <button class="btn btn-primaire" onclick="location.reload()">Réessayer</button>
+    </div>
+
     <form class="formulaire" id="form-boutique" hidden>
       <h1>Créer ma boutique</h1>
 
@@ -252,12 +258,18 @@
     // ---- Garde de page + anti double boutique ----
     const user = await exigerConnexion("../connexion.html");
     if (user) {
-      const existante = await boutiqueDeProprietaire(user.uid);
-      if (existante) {
-        location.replace("index.html"); // une seule boutique par compte
-      } else {
+      try {
+        const existante = await boutiqueDeProprietaire(user.uid);
+        if (existante) {
+          location.replace("index.html"); // une seule boutique par compte
+        } else {
+          chargement.hidden = true;
+          form.hidden = false;
+        }
+      } catch {
+        // Réseau en panne ou trop lent : on rend la main au lieu de bloquer.
         chargement.hidden = true;
-        form.hidden = false;
+        document.getElementById("erreur-chargement").hidden = false;
       }
     }
 
@@ -306,10 +318,12 @@
         confirmation.hidden = false;
         window.scrollTo(0, 0);
       } catch (erreur) {
-        const refus = erreur?.code === "permission-denied";
-        afficherErreur(refus
-          ? "Création refusée par le serveur. Vérifiez que les règles de sécurité Firestore sont bien en place."
-          : "La création a échoué. Vérifiez votre connexion et réessayez.");
+        let texte = "La création a échoué. Vérifiez votre connexion et réessayez.";
+        if (erreur?.code === "delai-depasse") texte = erreur.message;
+        if (erreur?.code === "permission-denied") {
+          texte = "Création refusée par le serveur. Vérifiez que les règles de sécurité Firestore sont bien en place.";
+        }
+        afficherErreur(texte);
         bouton.disabled = false;
         bouton.textContent = "Créer ma boutique";
       }

@@ -22,6 +22,12 @@
 
     <p id="chargement" class="etat-vide">Chargement…</p>
 
+    <div class="page-attente" id="erreur-chargement" hidden>
+      <p class="pictogramme">📶</p>
+      <p>Connexion instable, réessayez.</p>
+      <button class="btn btn-primaire" onclick="location.reload()">Réessayer</button>
+    </div>
+
     <div id="contenu" hidden>
       <div class="bandeau-statut" id="bandeau"></div>
       <h1 id="nom-boutique"></h1>
@@ -36,7 +42,7 @@
     // Tableau de bord commerçant — version minimale M1 (garde + statut).
     // Compteurs, liste produits et partage arrivent au jalon M2.
     import { exigerConnexion, deconnecter } from "../js/auth.js";
-    import { boutiqueDeProprietaire } from "../js/db.js";
+    import { boutiqueDeProprietaire, reparerDocumentPrive } from "../js/db.js";
 
     document.getElementById("btn-deconnexion").addEventListener("click", async () => {
       await deconnecter();
@@ -45,24 +51,35 @@
 
     const user = await exigerConnexion("../connexion.html");
     if (user) {
-      const boutique = await boutiqueDeProprietaire(user.uid);
-      if (!boutique) {
-        location.replace("boutique.html"); // pas encore de boutique : formulaire de création
-      } else {
-        const BANDEAUX = {
-          en_attente: ["bandeau-attente", "⏳ En attente de validation"],
-          active: ["bandeau-active", "✅ En ligne"],
-          suspendue: ["bandeau-suspendue", "⛔ Suspendue — contactez SUUQ"],
-        };
-        const [classe, texte] = BANDEAUX[boutique.statut] || BANDEAUX.en_attente;
-        const bandeau = document.getElementById("bandeau");
-        bandeau.classList.add(classe);
-        bandeau.textContent = texte;
-        document.getElementById("nom-boutique").textContent = boutique.nom;
-        document.getElementById("infos-boutique").textContent =
-          `${boutique.categorie} · ${boutique.quartier}`;
+      try {
+        const boutique = await boutiqueDeProprietaire(user.uid);
+        if (!boutique) {
+          location.replace("boutique.html"); // pas encore de boutique : formulaire de création
+        } else {
+          const BANDEAUX = {
+            en_attente: ["bandeau-attente", "⏳ En attente de validation"],
+            active: ["bandeau-active", "✅ En ligne"],
+            suspendue: ["bandeau-suspendue", "⛔ Suspendue — contactez SUUQ"],
+          };
+          const [classe, texte] = BANDEAUX[boutique.statut] || BANDEAUX.en_attente;
+          const bandeau = document.getElementById("bandeau");
+          bandeau.classList.add(classe);
+          bandeau.textContent = texte;
+          document.getElementById("nom-boutique").textContent = boutique.nom;
+          document.getElementById("infos-boutique").textContent =
+            `${boutique.categorie} · ${boutique.quartier}`;
+          document.getElementById("chargement").hidden = true;
+          document.getElementById("contenu").hidden = false;
+
+          // Réparation silencieuse d'une création interrompue entre les deux
+          // écritures (boutique créée, document privé manquant). Les échecs
+          // sont ignorés : nouvelle tentative au prochain chargement.
+          reparerDocumentPrive(user, boutique.id).catch(() => {});
+        }
+      } catch {
+        // Réseau en panne ou trop lent : on rend la main au lieu de bloquer.
         document.getElementById("chargement").hidden = true;
-        document.getElementById("contenu").hidden = false;
+        document.getElementById("erreur-chargement").hidden = false;
       }
     }
   </script>
