@@ -97,3 +97,4 @@ en cas de conflit, l'avenant prévaut).
 ```
 
 Le service worker (`sw.js`) arrive au jalon M5.
+<!-- deploy M2 -->
