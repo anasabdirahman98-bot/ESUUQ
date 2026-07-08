@@ -17,7 +17,10 @@
 
   <header class="entete">
     <a class="logo" href="index.html">SUUQ</a>
-    <a class="btn btn-secondaire" href="connexion.html">Espace commerçant</a>
+    <nav class="nav-entete">
+      <a class="lien-discret" href="favoris.html">❤️ Favoris</a>
+      <a class="btn btn-secondaire" href="connexion.html">Espace commerçant</a>
+    </nav>
   </header>
 
   <main class="conteneur">
@@ -36,17 +39,60 @@
 
       <!-- Chips catégories remplies par JS depuis js/constantes.js -->
       <div class="chips" id="chips-categories" aria-label="Catégories"></div>
+
+      <details class="filtres" id="filtres">
+        <summary>Filtres et tri</summary>
+        <div class="filtres-corps">
+          <div class="champ">
+            <label for="filtre-quartier">Quartier</label>
+            <select id="filtre-quartier"><option value="">Tous les quartiers</option></select>
+          </div>
+          <div class="champ-double">
+            <div class="champ">
+              <label for="filtre-prix-min">Prix min (FDJ)</label>
+              <input type="number" id="filtre-prix-min" min="0" inputmode="numeric" placeholder="0">
+            </div>
+            <div class="champ">
+              <label for="filtre-prix-max">Prix max (FDJ)</label>
+              <input type="number" id="filtre-prix-max" min="0" inputmode="numeric" placeholder="Sans limite">
+            </div>
+          </div>
+          <div class="champ">
+            <label for="tri">Trier par</label>
+            <select id="tri">
+              <option value="recents">Plus récents</option>
+              <option value="prix-croissant">Prix croissant</option>
+              <option value="prix-decroissant">Prix décroissant</option>
+            </select>
+          </div>
+        </div>
+      </details>
     </section>
 
-    <section aria-label="Boutiques vérifiées">
+    <section id="section-resultats" aria-label="Résultats" hidden>
+      <h2 id="titre-resultats"></h2>
+      <div class="grille-produits" id="liste-resultats"></div>
+      <p class="etat-vide" id="vide-resultats" hidden></p>
+    </section>
+
+    <section id="section-boutiques" aria-label="Boutiques vérifiées">
       <h2>Boutiques vérifiées</h2>
       <div class="defile-horizontal" id="liste-boutiques"></div>
     </section>
 
-    <section aria-label="Nouveautés">
+    <section id="section-nouveautes" aria-label="Nouveautés">
       <h2>Nouveautés</h2>
       <div class="grille-produits" id="liste-nouveautes"></div>
+      <p class="etat-vide" id="vide-nouveautes" hidden>
+        Aucun produit pour l'instant. Revenez bientôt !
+      </p>
     </section>
+
+    <div class="page-attente" id="erreur-catalogue" hidden>
+      <p class="pictogramme">📶</p>
+      <p>Impossible de charger le catalogue.<br>Vérifiez votre connexion.</p>
+      <button class="btn btn-primaire" onclick="location.reload()">Réessayer</button>
+    </div>
 
   </main>
 
@@ -56,19 +102,132 @@
   </footer>
 
   <script type="module">
-    // Accueil statique (jalon M0) : chips depuis les constantes + squelettes.
-    // Le contenu réel (Firestore) et la recherche arrivent au jalon M3.
-    import { CATEGORIES } from "./js/constantes.js";
-    import { creerChip, creerSqueletteProduit, creerSqueletteBoutique } from "./js/ui.js";
+    // Accueil dynamique + recherche (jalon M3).
+    // Le shell (chips, squelettes) s'affiche avant l'init Firebase (§8.2).
+    import { CATEGORIES, QUARTIERS } from "./js/constantes.js";
+    import {
+      creerChip, creerSqueletteProduit, creerSqueletteBoutique,
+      carteProduit, carteBoutique,
+    } from "./js/ui.js";
 
-    const chips = document.getElementById("chips-categories");
-    for (const categorie of CATEGORIES) chips.append(creerChip(categorie));
+    const listeBoutiques = document.getElementById("liste-boutiques");
+    const listeNouveautes = document.getElementById("liste-nouveautes");
+    const listeResultats = document.getElementById("liste-resultats");
+    const sectionResultats = document.getElementById("section-resultats");
+    const sectionBoutiques = document.getElementById("section-boutiques");
+    const sectionNouveautes = document.getElementById("section-nouveautes");
+    const videResultats = document.getElementById("vide-resultats");
+    const titreResultats = document.getElementById("titre-resultats");
 
-    const boutiques = document.getElementById("liste-boutiques");
-    for (let i = 0; i < 4; i++) boutiques.append(creerSqueletteBoutique());
+    // Squelettes immédiats (avant le chargement de l'index)
+    for (let i = 0; i < 4; i++) listeBoutiques.append(creerSqueletteBoutique());
+    for (let i = 0; i < 6; i++) listeNouveautes.append(creerSqueletteProduit());
 
-    const nouveautes = document.getElementById("liste-nouveautes");
-    for (let i = 0; i < 6; i++) nouveautes.append(creerSqueletteProduit());
+    // ---- État de recherche ----
+    const etat = { texte: "", categorie: null, quartier: "", prixMin: null, prixMax: null, tri: "recents" };
+    let index = null;
+
+    // Chips catégories (bascule : re-cliquer désactive)
+    const conteneurChips = document.getElementById("chips-categories");
+    for (const categorie of CATEGORIES) {
+      const chip = creerChip(categorie);
+      chip.addEventListener("click", () => {
+        etat.categorie = etat.categorie === categorie ? null : categorie;
+        for (const c of conteneurChips.children) c.classList.toggle("actif", c.textContent === etat.categorie);
+        rafraichir();
+      });
+      conteneurChips.append(chip);
+    }
+
+    const selectQuartier = document.getElementById("filtre-quartier");
+    for (const q of QUARTIERS) selectQuartier.append(new Option(q, q));
+
+    // Recherche à la saisie, debounce 300 ms (§4.1)
+    let minuteur = null;
+    document.getElementById("champ-recherche").addEventListener("input", (e) => {
+      clearTimeout(minuteur);
+      minuteur = setTimeout(() => {
+        etat.texte = e.target.value;
+        rafraichir();
+      }, 300);
+    });
+    selectQuartier.addEventListener("change", () => { etat.quartier = selectQuartier.value; rafraichir(); });
+    document.getElementById("filtre-prix-min").addEventListener("change", (e) => {
+      etat.prixMin = e.target.value === "" ? null : Number(e.target.value);
+      rafraichir();
+    });
+    document.getElementById("filtre-prix-max").addEventListener("change", (e) => {
+      etat.prixMax = e.target.value === "" ? null : Number(e.target.value);
+      rafraichir();
+    });
+    document.getElementById("tri").addEventListener("change", (e) => { etat.tri = e.target.value; rafraichir(); });
+
+    // ---- Chargement de l'index catalogue (cache 15 min) ----
+    // Import dynamique : l'accueil s'affiche sans attendre le SDK Firebase.
+    let rechercherFn = null;
+    (async () => {
+      try {
+        const { chargerIndex, rechercher } = await import("./js/recherche.js");
+        rechercherFn = rechercher;
+        index = await chargerIndex();
+        rendreAccueil();
+        rafraichir();
+      } catch {
+        sectionBoutiques.hidden = true;
+        sectionNouveautes.hidden = true;
+        sectionResultats.hidden = true;
+        document.getElementById("erreur-catalogue").hidden = false;
+      }
+    })();
+
+    function rendreAccueil() {
+      const boutiquesParId = new Map(index.boutiques.map((b) => [b.id, b]));
+
+      const verifiees = index.boutiques.filter((b) => b.badgeVerifie);
+      listeBoutiques.innerHTML = "";
+      for (const b of verifiees) listeBoutiques.append(carteBoutique(b));
+      sectionBoutiques.hidden = verifiees.length === 0;
+
+      const nouveautes = index.produits
+        .filter((p) => boutiquesParId.has(p.boutiqueId))
+        .slice(0, 12);
+      listeNouveautes.innerHTML = "";
+      for (const p of nouveautes) listeNouveautes.append(carteProduit(p, boutiquesParId.get(p.boutiqueId)));
+      document.getElementById("vide-nouveautes").hidden = nouveautes.length > 0;
+    }
+
+    function rechercheActive() {
+      return Boolean(etat.texte.trim()) || etat.categorie !== null || etat.quartier !== ""
+        || etat.prixMin != null || etat.prixMax != null || etat.tri !== "recents";
+    }
+
+    function rafraichir() {
+      if (!index || !rechercherFn) return; // l'index arrive, les squelettes patientent
+      if (!rechercheActive()) {
+        sectionResultats.hidden = true;
+        sectionBoutiques.hidden = index.boutiques.filter((b) => b.badgeVerifie).length === 0;
+        sectionNouveautes.hidden = false;
+        return;
+      }
+      const resultats = rechercherFn(index, etat);
+      sectionBoutiques.hidden = true;
+      sectionNouveautes.hidden = true;
+      sectionResultats.hidden = false;
+      titreResultats.textContent = resultats.length === 0
+        ? "Résultats"
+        : `${resultats.length} résultat${resultats.length > 1 ? "s" : ""}`;
+      listeResultats.innerHTML = "";
+      for (const r of resultats) listeResultats.append(carteProduit(r.produit, r.boutique));
+      if (resultats.length === 0) {
+        const texte = etat.texte.trim();
+        videResultats.textContent = texte
+          ? `Aucun résultat pour « ${texte} ». Essayez un autre mot ou parcourez les catégories.`
+          : "Aucun résultat. Modifiez vos filtres.";
+        videResultats.hidden = false;
+      } else {
+        videResultats.hidden = true;
+      }
+    }
   </script>
 
 </body>

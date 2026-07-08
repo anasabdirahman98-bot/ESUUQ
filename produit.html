@@ -15,14 +15,204 @@
 
   <header class="entete">
     <a class="logo" href="index.html">SUUQ</a>
+    <a class="lien-discret" href="index.html">← Recherche</a>
   </header>
 
-  <main class="conteneur page-attente">
-    <p class="pictogramme">🛍️</p>
-    <h1>Fiche produit</h1>
-    <p>Cette page sera construite au jalon M3 (vitrine publique).</p>
-    <a class="btn btn-primaire" href="index.html">Retour à l'accueil</a>
+  <main class="conteneur conteneur-fiche">
+
+    <p id="chargement" class="etat-vide">Chargement…</p>
+
+    <div class="page-attente" id="indisponible" hidden>
+      <p class="pictogramme">🛍️</p>
+      <h1>Produit indisponible</h1>
+      <p>Ce produit n'existe pas ou n'est plus visible.</p>
+      <a class="btn btn-primaire" href="index.html">Retour à l'accueil</a>
+    </div>
+
+    <article id="fiche" hidden>
+      <div class="galerie" id="galerie"></div>
+      <div class="points" id="points" hidden></div>
+
+      <div class="entete-produit">
+        <div class="entete-produit-texte">
+          <h1 id="nom-p"></h1>
+          <p class="prix-fiche" id="prix-p"></p>
+          <p id="dispo-p"></p>
+        </div>
+        <div class="entete-produit-boutons">
+          <button class="btn-rond" id="btn-favori" type="button" aria-label="Ajouter aux favoris" aria-pressed="false">♡</button>
+          <button class="btn-rond" id="btn-partager" type="button" aria-label="Partager">📤</button>
+        </div>
+      </div>
+
+      <p id="description-p" class="description-boutique"></p>
+      <p class="ligne-info" id="categorie-p"></p>
+
+      <a class="carte-lien-boutique" id="lien-boutique">
+        <div id="boutique-nom"></div>
+        <div class="quartier" id="boutique-quartier"></div>
+      </a>
+
+      <h2 id="titre-autres" hidden>Autres produits de cette boutique</h2>
+      <div class="grille-produits" id="autres-produits"></div>
+    </article>
+
   </main>
+
+  <!-- Bouton principal collant en bas de la fiche (§9.3) -->
+  <div class="barre-collante" id="barre-commander" hidden>
+    <a class="btn btn-whatsapp" id="btn-commander" target="_blank" rel="noopener">💬 Commander sur WhatsApp</a>
+  </div>
+
+  <script type="module">
+    // Fiche produit publique (jalon M3).
+    import { produitParId, boutiqueParId, incrementerStat } from "./js/db.js";
+    import { urlFiche } from "./js/images.js";
+    import { formatPrix } from "./js/constantes.js";
+    import { carteProduit, afficherToast, estFavori, basculerFavori } from "./js/ui.js";
+
+    const idProduit = new URLSearchParams(location.search).get("id");
+
+    function afficherIndisponible() {
+      document.getElementById("chargement").hidden = true;
+      document.getElementById("indisponible").hidden = false;
+    }
+
+    (async () => {
+      let produit = null;
+      let boutique = null;
+      try {
+        produit = idProduit ? await produitParId(idProduit) : null;
+        if (produit) boutique = await boutiqueParId(produit.boutiqueId);
+      } catch {
+        afficherIndisponible(); // masqué, boutique non active, ou réseau
+        return;
+      }
+      // Sans boutique active, pas de commande possible : produit introuvable
+      // publiquement (cohérent avec le critère 3 du §12).
+      if (!produit || !produit.visible || !boutique || boutique.statut !== "active") {
+        afficherIndisponible();
+        return;
+      }
+
+      document.title = `${produit.nom} — SUUQ`;
+
+      // ---- Galerie (1 à 3 photos, défilement tactile, points) ----
+      const galerie = document.getElementById("galerie");
+      const points = document.getElementById("points");
+      const photos = produit.photos || [];
+      for (const url of photos) {
+        const img = document.createElement("img");
+        img.src = urlFiche(url);
+        img.alt = produit.nom;
+        galerie.append(img);
+      }
+      if (photos.length > 1) {
+        points.hidden = false;
+        photos.forEach((_, i) => {
+          const point = document.createElement("span");
+          point.className = "point" + (i === 0 ? " actif" : "");
+          points.append(point);
+        });
+        galerie.addEventListener("scroll", () => {
+          const position = Math.round(galerie.scrollLeft / galerie.clientWidth);
+          [...points.children].forEach((p, i) => p.classList.toggle("actif", i === position));
+        }, { passive: true });
+      }
+
+      document.getElementById("nom-p").textContent = produit.nom;
+      document.getElementById("prix-p").textContent = formatPrix(produit.prix);
+      const dispo = document.getElementById("dispo-p");
+      if (produit.disponible) {
+        dispo.textContent = "✔ Disponible";
+        dispo.className = "texte-vert";
+      } else {
+        dispo.innerHTML = "";
+        const pastille = document.createElement("span");
+        pastille.className = "pastille-rupture";
+        pastille.textContent = "Rupture de stock";
+        dispo.append(pastille);
+      }
+      const description = document.getElementById("description-p");
+      if (produit.description) description.textContent = produit.description;
+      else description.hidden = true;
+      document.getElementById("categorie-p").textContent = `🏷️ ${produit.categorie}`;
+
+      // ---- Lien boutique (nom + badge + quartier) ----
+      const lien = document.getElementById("lien-boutique");
+      lien.href = `boutique.html?s=${encodeURIComponent(boutique.slug)}`;
+      const nomBoutique = document.getElementById("boutique-nom");
+      nomBoutique.textContent = `🏪 ${boutique.nom}`;
+      if (boutique.badgeVerifie) {
+        const badge = document.createElement("span");
+        badge.className = "badge-verifie";
+        badge.textContent = "✓ Vérifié";
+        nomBoutique.append(" ", badge);
+      }
+      document.getElementById("boutique-quartier").textContent = boutique.quartier;
+
+      // ---- Commander sur WhatsApp : message pré-rempli exact (§4.1) ----
+      const btnCommander = document.getElementById("btn-commander");
+      const messageWa = `Salam ! J'ai vu « ${produit.nom} » à ${formatPrix(produit.prix)} sur SUUQ. C'est toujours disponible ?`;
+      btnCommander.href = `https://wa.me/${boutique.whatsapp}?text=${encodeURIComponent(messageWa)}`;
+      btnCommander.addEventListener("click", () => {
+        // incrément produit ET boutique (§4.1), best effort
+        incrementerStat("produits", produit.id, "clicsWhatsapp").catch(() => {});
+        incrementerStat("boutiques", boutique.id, "clicsWhatsapp").catch(() => {});
+      });
+      document.getElementById("barre-commander").hidden = false;
+
+      // ---- Favori (localStorage) ----
+      const btnFavori = document.getElementById("btn-favori");
+      function rendreFavori() {
+        const actif = estFavori(produit.id);
+        btnFavori.textContent = actif ? "❤️" : "♡";
+        btnFavori.setAttribute("aria-pressed", String(actif));
+      }
+      rendreFavori();
+      btnFavori.addEventListener("click", () => {
+        const ajoute = basculerFavori(produit.id);
+        rendreFavori();
+        afficherToast(ajoute ? "Ajouté aux favoris" : "Retiré des favoris");
+      });
+
+      // ---- Partager ----
+      document.getElementById("btn-partager").addEventListener("click", async () => {
+        const url = new URL(`produit.html?id=${produit.id}`, location.href).href;
+        try {
+          if (navigator.share) {
+            await navigator.share({ title: produit.nom, text: `${produit.nom} — ${formatPrix(produit.prix)} sur SUUQ`, url });
+          } else {
+            await navigator.clipboard.writeText(url);
+            afficherToast("Lien copié !");
+          }
+        } catch { /* partage annulé */ }
+      });
+
+      document.getElementById("chargement").hidden = true;
+      document.getElementById("fiche").hidden = false;
+
+      // Compteur de vues produit : au plus 1 fois par session
+      const cleVue = "suuq_vue_p_" + produit.id;
+      if (!sessionStorage.getItem(cleVue)) {
+        sessionStorage.setItem(cleVue, "1");
+        incrementerStat("produits", produit.id, "vues").catch(() => {});
+      }
+
+      // ---- Autres produits de cette boutique (4 max, §4.1) ----
+      try {
+        const { produitsPublicsDeBoutique } = await import("./js/db.js");
+        const autres = (await produitsPublicsDeBoutique(boutique.id))
+          .filter((p) => p.id !== produit.id)
+          .slice(0, 4);
+        if (autres.length) {
+          document.getElementById("titre-autres").hidden = false;
+          const grille = document.getElementById("autres-produits");
+          for (const p of autres) grille.append(carteProduit(p, null));
+        }
+      } catch { /* section facultative */ }
+    })();
+  </script>
 
 </body>
 </html>

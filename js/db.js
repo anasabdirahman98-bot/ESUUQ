@@ -13,7 +13,9 @@ import {
   getDocs,
   query,
   where,
+  orderBy,
   limit,
+  increment,
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
@@ -187,4 +189,86 @@ export async function majProduit(produitId, champs) {
 
 export async function supprimerProduit(produitId) {
   await avecDelai(deleteDoc(doc(db, "produits", produitId)));
+}
+
+// ---- Lectures publiques (jalon M3) ----
+// Les règles §7.1 n'autorisent que les documents actifs/visibles en lecture
+// publique : chaque requête doit inclure ces filtres, sinon elle est rejetée.
+
+export async function boutiqueParId(boutiqueId) {
+  const instantane = await avecDelai(getDoc(doc(db, "boutiques", boutiqueId)));
+  return instantane.exists() ? { id: instantane.id, ...instantane.data() } : null;
+}
+
+export async function boutiqueParSlug(slug) {
+  const resultat = await avecDelai(getDocs(query(
+    collection(db, "boutiques"),
+    where("slug", "==", slug),
+    where("statut", "==", "active"),
+    limit(1)
+  )));
+  if (resultat.empty) return null;
+  const premier = resultat.docs[0];
+  return { id: premier.id, ...premier.data() };
+}
+
+// Catalogue public d'une boutique : disponibles d'abord, puis plus récents.
+export async function produitsPublicsDeBoutique(boutiqueId) {
+  const resultat = await avecDelai(getDocs(query(
+    collection(db, "produits"),
+    where("boutiqueId", "==", boutiqueId),
+    where("visible", "==", true)
+  )));
+  const liste = resultat.docs.map((d) => ({ id: d.id, ...d.data() }));
+  liste.sort((a, b) =>
+    (b.disponible - a.disponible) || ((b.creeLe?.seconds || 0) - (a.creeLe?.seconds || 0)));
+  return liste;
+}
+
+// ---- Index catalogue (§6) — consommé par js/recherche.js ----
+// NB : la requête produits exige un index composite Firestore
+// (visible ASC + creeLe DESC) — voir README, Mise en route.
+
+export async function indexProduits() {
+  const resultat = await avecDelai(getDocs(query(
+    collection(db, "produits"),
+    where("visible", "==", true),
+    orderBy("creeLe", "desc"),
+    limit(600)
+  )));
+  // On ne garde que les champs utiles aux listes (§6) pour un cache léger.
+  return resultat.docs.map((d) => {
+    const p = d.data();
+    return {
+      id: d.id, nom: p.nom, nomLower: p.nomLower, tags: p.tags || [],
+      prix: p.prix, categorie: p.categorie, thumbUrl: p.thumbUrl,
+      disponible: p.disponible, boutiqueId: p.boutiqueId,
+    };
+  });
+}
+
+export async function indexBoutiques() {
+  const resultat = await avecDelai(getDocs(query(
+    collection(db, "boutiques"),
+    where("statut", "==", "active")
+  )));
+  // logoUrl ajouté au sous-ensemble §6 : l'accueil affiche le logo des
+  // boutiques vérifiées (§4.1) — quelques octets par boutique.
+  return resultat.docs.map((d) => {
+    const b = d.data();
+    return {
+      id: d.id, nom: b.nom, slug: b.slug, quartier: b.quartier,
+      badgeVerifie: b.badgeVerifie, nomLower: b.nomLower, logoUrl: b.logoUrl,
+    };
+  });
+}
+
+// ---- Compteurs publics ----
+// increment(1) et RIEN d'autre dans la mise à jour : la règle §7.1 n'accepte
+// que le champ stats (incréments de 0 ou +1) pour les visiteurs. Ne jamais
+// ajouter majLe ici. Best effort : les échecs sont ignorés par les appelants.
+export function incrementerStat(nomCollection, id, champ) {
+  return avecDelai(updateDoc(doc(db, nomCollection, id), {
+    [`stats.${champ}`]: increment(1),
+  }));
 }

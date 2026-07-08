@@ -26,7 +26,7 @@ python3 -m http.server 8000
 | M0 | Squelette, CSS de base, constantes, manifest, config Firebase, accueil statique | ✅ Fait |
 | M1 | Auth + création de boutique + garde des pages `espace/` | ✅ Fait |
 | M2 | CRUD produits, compression images, tableau de bord | ✅ Fait |
-| M3 | Vitrine publique : recherche, fiches, WhatsApp, favoris, compteurs | ⏳ À venir |
+| M3 | Vitrine publique : recherche, fiches, WhatsApp, favoris, compteurs | ✅ Fait |
 | M4 | Espace admin : validation, badge vérifié, modération | ⏳ À venir |
 | M5 | Service worker, hors-ligne, audit performance, déploiement | ⏳ À venir |
 
@@ -73,6 +73,15 @@ en cas de conflit, l'avenant prévaut).
    documenté dans Décisions).
 4. (Recommandé) **Authentication → Settings → Domaines autorisés** : vérifier que
    `anasabdirahman98-bot.github.io` et `localhost` figurent dans la liste.
+5. **Index composite Firestore (requis par le M3)** : la requête de l'index
+   catalogue (`produits` où `visible == true`, tri `creeLe desc`, §6) exige un
+   index composite. Console Firestore (base `default`) → *Index* → *Créer un
+   index* : collection `produits`, champs `visible` (croissant) puis `creeLe`
+   (décroissant), portée Collection. Sans lui, la recherche publique échoue —
+   la console navigateur affiche alors un lien de création directe.
+6. **GitHub Pages** : Settings → Pages → Source = **GitHub Actions** (workflow
+   [`deploy-pages.yml`](.github/workflows/deploy-pages.yml) — déploie `main`
+   à chaque push).
 
 ## Structure
 

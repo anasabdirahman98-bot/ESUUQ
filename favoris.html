@@ -15,14 +15,65 @@
 
   <header class="entete">
     <a class="logo" href="index.html">SUUQ</a>
+    <a class="lien-discret" href="index.html">← Recherche</a>
   </header>
 
-  <main class="conteneur page-attente">
-    <p class="pictogramme">❤️</p>
+  <main class="conteneur">
     <h1>Mes favoris</h1>
-    <p>Cette page sera construite au jalon M3 (vitrine publique).</p>
-    <a class="btn btn-primaire" href="index.html">Retour à l'accueil</a>
+
+    <div class="grille-produits" id="liste-favoris"></div>
+
+    <div class="page-attente" id="vide-favoris" hidden>
+      <p class="pictogramme">🤍</p>
+      <p>Aucun favori pour l'instant.<br>
+         Touchez le cœur sur une fiche produit pour le retrouver ici.</p>
+      <a class="btn btn-primaire" href="index.html">Parcourir les produits</a>
+    </div>
+
+    <div class="page-attente" id="erreur-favoris" hidden>
+      <p class="pictogramme">📶</p>
+      <p>Impossible de charger vos favoris.<br>Vérifiez votre connexion.</p>
+      <button class="btn btn-primaire" onclick="location.reload()">Réessayer</button>
+    </div>
   </main>
+
+  <script type="module">
+    // Favoris (jalon M3) : IDs en localStorage, données résolues via l'index
+    // catalogue en cache. Produit disparu = retiré silencieusement (§4.1).
+    import { chargerIndex } from "./js/recherche.js";
+    import { carteProduit, lireFavoris, ecrireFavoris } from "./js/ui.js";
+
+    const liste = document.getElementById("liste-favoris");
+    const vide = document.getElementById("vide-favoris");
+
+    (async () => {
+      const ids = lireFavoris();
+      if (ids.length === 0) {
+        vide.hidden = false;
+        return;
+      }
+      let index;
+      try {
+        index = await chargerIndex();
+      } catch {
+        document.getElementById("erreur-favoris").hidden = false;
+        return;
+      }
+      const produitsParId = new Map(index.produits.map((p) => [p.id, p]));
+      const boutiquesParId = new Map(index.boutiques.map((b) => [b.id, b]));
+
+      const conserves = [];
+      for (const id of ids) {
+        const produit = produitsParId.get(id);
+        const boutique = produit && boutiquesParId.get(produit.boutiqueId);
+        if (!produit || !boutique) continue; // disparu → retiré en silence
+        conserves.push(id);
+        liste.append(carteProduit(produit, boutique));
+      }
+      if (conserves.length !== ids.length) ecrireFavoris(conserves);
+      vide.hidden = conserves.length > 0;
+    })();
+  </script>
 
 </body>
 </html>

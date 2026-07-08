@@ -566,6 +566,8 @@
   transition: opacity .2s;
 }
 .toast.visible { opacity: 1; }
+/* Au-dessus de la barre collante quand elle est présente */
+body:has(.barre-collante:not([hidden])) .toast { bottom: 96px; }
 
 /* ---- Bandeau de statut boutique ---- */
 .bandeau-statut {
@@ -577,6 +579,218 @@
 .bandeau-attente { background: rgba(217, 95, 24, .1); color: var(--suuq-primaire-fonce); }
 .bandeau-active { background: rgba(31, 122, 77, .1); color: var(--suuq-vert); }
 .bandeau-suspendue { background: rgba(192, 57, 43, .1); color: var(--suuq-rouge); }
+
+/* ---- Navigation d'en-tête ---- */
+.nav-entete {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ---- Filtres et tri (accueil) ---- */
+.filtres {
+  margin-top: 4px;
+  border: 1px solid var(--suuq-bordure);
+  border-radius: var(--suuq-radius);
+  background: var(--suuq-surface);
+}
+.filtres summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--suuq-texte-2);
+  cursor: pointer;
+  list-style: none;
+}
+.filtres summary::before { content: "⚙️ "; margin-right: 6px; }
+.filtres-corps {
+  display: grid;
+  gap: 12px;
+  padding: 4px 14px 14px;
+}
+.champ-double {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+/* ---- Fiche boutique ---- */
+.couverture-boutique {
+  height: 140px;
+  margin: -16px -16px 0;
+  background: linear-gradient(120deg, var(--suuq-primaire), var(--suuq-primaire-fonce));
+  background-size: cover;
+  background-position: center;
+}
+.entete-boutique {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: -28px;
+  margin-bottom: 12px;
+}
+.entete-boutique h1 { margin: 0; font-size: 20px; }
+.logo-fiche {
+  width: 72px;
+  height: 72px;
+  flex: none;
+  border-radius: 16px;
+  border: 3px solid var(--suuq-surface);
+  object-fit: cover;
+  background: var(--suuq-fond);
+  box-shadow: var(--suuq-ombre);
+}
+.logo-lettre {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--suuq-primaire);
+  background: var(--suuq-fond);
+}
+.carte-boutique .logo-lettre { font-size: 20px; }
+.description-boutique { color: var(--suuq-texte-2); }
+
+.bloc-infos {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  background: var(--suuq-surface);
+  border: 1px solid var(--suuq-bordure);
+  border-radius: var(--suuq-radius);
+}
+.ligne-info { margin: 0; font-size: 14px; }
+.texte-vert { color: var(--suuq-vert); font-weight: 700; }
+.texte-rouge { color: var(--suuq-rouge); font-weight: 700; }
+
+.horaires-details { width: 100%; }
+.horaires-details summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--suuq-primaire);
+  cursor: pointer;
+}
+.table-horaires {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.table-horaires th {
+  text-align: left;
+  font-weight: 600;
+  padding: 6px 8px 6px 0;
+  width: 40%;
+}
+.table-horaires td { padding: 6px 0; color: var(--suuq-texte-2); }
+.table-horaires tr + tr { border-top: 1px solid var(--suuq-bordure); }
+
+.actions-fiche {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+/* ---- Fiche produit ---- */
+.conteneur-fiche { padding-bottom: 88px; } /* place pour la barre collante */
+
+.galerie {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  gap: 0;
+  margin: -16px -16px 0;
+  background: var(--suuq-fond);
+  scrollbar-width: none;
+}
+.galerie::-webkit-scrollbar { display: none; }
+.galerie img {
+  width: 100%;
+  flex: none;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  scroll-snap-align: center;
+}
+.points {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 0 4px;
+}
+.point {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--suuq-bordure);
+}
+.point.actif { background: var(--suuq-primaire); }
+
+.entete-produit {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+}
+.entete-produit h1 { margin: 0 0 4px; font-size: 20px; }
+.prix-fiche {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--suuq-primaire);
+}
+.entete-produit-boutons {
+  display: flex;
+  gap: 8px;
+  flex: none;
+}
+.btn-rond {
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--suuq-bordure);
+  border-radius: 50%;
+  background: var(--suuq-surface);
+  font-size: 20px;
+  cursor: pointer;
+  box-shadow: var(--suuq-ombre);
+}
+
+.carte-lien-boutique {
+  display: grid;
+  gap: 2px;
+  padding: 12px 14px;
+  margin: 16px 0 24px;
+  background: var(--suuq-surface);
+  border: 1px solid var(--suuq-bordure);
+  border-radius: var(--suuq-radius);
+  text-decoration: none;
+  font-weight: 600;
+}
+.carte-lien-boutique .quartier {
+  font-weight: 400;
+  font-size: 13px;
+  color: var(--suuq-texte-2);
+}
+
+.barre-collante {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  background: var(--suuq-surface);
+  border-top: 1px solid var(--suuq-bordure);
+}
+.barre-collante .btn { width: 100%; }
 
 /* ---- Page en attente d'un jalon ultérieur ---- */
 .page-attente {

@@ -15,14 +15,229 @@
 
   <header class="entete">
     <a class="logo" href="index.html">SUUQ</a>
+    <a class="lien-discret" href="index.html">← Recherche</a>
   </header>
 
-  <main class="conteneur page-attente">
-    <p class="pictogramme">🏪</p>
-    <h1>Fiche boutique</h1>
-    <p>Cette page sera construite au jalon M3 (vitrine publique).</p>
-    <a class="btn btn-primaire" href="index.html">Retour à l'accueil</a>
+  <main class="conteneur">
+
+    <p id="chargement" class="etat-vide">Chargement…</p>
+
+    <div class="page-attente" id="indisponible" hidden>
+      <p class="pictogramme">🏪</p>
+      <h1>Boutique indisponible</h1>
+      <p>Cette boutique n'existe pas ou n'est pas encore visible publiquement.</p>
+      <a class="btn btn-primaire" href="index.html">Retour à l'accueil</a>
+    </div>
+
+    <article id="fiche" hidden>
+      <div class="couverture-boutique" id="couverture"></div>
+
+      <div class="entete-boutique">
+        <div id="logo-conteneur"></div>
+        <div>
+          <h1 id="nom-b"></h1>
+          <p class="accroche" id="categorie-b"></p>
+        </div>
+      </div>
+
+      <p id="description-b" class="description-boutique"></p>
+
+      <div class="bloc-infos">
+        <p class="ligne-info" id="localisation-b"></p>
+        <a class="btn btn-secondaire" id="btn-itineraire" target="_blank" rel="noopener" hidden>🗺️ Itinéraire</a>
+      </div>
+
+      <div class="bloc-infos" id="bloc-horaires" hidden>
+        <p class="ligne-info" id="indicateur-ouvert"></p>
+        <details class="horaires-details">
+          <summary>Voir les horaires</summary>
+          <table class="table-horaires" id="table-horaires"></table>
+        </details>
+      </div>
+
+      <div class="actions-fiche">
+        <a class="btn btn-whatsapp" id="btn-whatsapp" target="_blank" rel="noopener">💬 Contacter sur WhatsApp</a>
+        <button class="btn btn-secondaire" id="btn-partager" type="button">📤 Partager</button>
+      </div>
+
+      <h2>Catalogue</h2>
+      <div class="grille-produits" id="catalogue"></div>
+      <p class="etat-vide" id="vide-catalogue" hidden>Aucun produit pour l'instant.</p>
+    </article>
+
   </main>
+
+  <script type="module">
+    // Fiche boutique publique (jalon M3).
+    import { boutiqueParId, boutiqueParSlug, produitsPublicsDeBoutique, incrementerStat } from "./js/db.js";
+    import { urlTransformee } from "./js/images.js";
+    import { carteProduit, afficherToast } from "./js/ui.js";
+
+    const parametres = new URLSearchParams(location.search);
+
+    function afficherIndisponible() {
+      document.getElementById("chargement").hidden = true;
+      document.getElementById("indisponible").hidden = false;
+    }
+
+    // ---- Horaires : indicateur Ouvert/Fermé en heure de Djibouti (UTC+3),
+    // avec les deux plages par jour (décision Chen, M1). ----
+    const JOURS = [
+      ["sam", "Samedi"], ["dim", "Dimanche"], ["lun", "Lundi"], ["mar", "Mardi"],
+      ["mer", "Mercredi"], ["jeu", "Jeudi"], ["ven", "Vendredi"],
+    ];
+    const CLE_JOUR = { Sat: "sam", Sun: "dim", Mon: "lun", Tue: "mar", Wed: "mer", Thu: "jeu", Fri: "ven" };
+
+    function maintenantDjibouti() {
+      const date = new Date();
+      const jour = new Intl.DateTimeFormat("en-US", { timeZone: "Africa/Djibouti", weekday: "short" }).format(date);
+      const heure = new Intl.DateTimeFormat("fr-FR", {
+        timeZone: "Africa/Djibouti", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+      }).format(date);
+      return { jour: CLE_JOUR[jour], heure }; // heure "HH:MM" comparable aux plages
+    }
+
+    function estOuverteMaintenant(horaires) {
+      const { jour, heure } = maintenantDjibouti();
+      const h = horaires[jour];
+      if (!h || !h.ouvert) return false;
+      const dansPlage = (de, a) => de && a && de <= heure && heure < a;
+      return dansPlage(h.de, h.a) || dansPlage(h.de2, h.a2);
+    }
+
+    function rendreHoraires(horaires) {
+      document.getElementById("bloc-horaires").hidden = false;
+      const indicateur = document.getElementById("indicateur-ouvert");
+      const ouverte = estOuverteMaintenant(horaires);
+      indicateur.textContent = ouverte ? "🟢 Ouvert actuellement" : "🔴 Fermé actuellement";
+      indicateur.className = "ligne-info " + (ouverte ? "texte-vert" : "texte-rouge");
+
+      const table = document.getElementById("table-horaires");
+      for (const [cle, nom] of JOURS) {
+        const h = horaires[cle];
+        const rangee = document.createElement("tr");
+        const celluleJour = document.createElement("th");
+        celluleJour.textContent = nom;
+        const cellulePlages = document.createElement("td");
+        if (!h || !h.ouvert) {
+          cellulePlages.textContent = "Fermé";
+        } else {
+          const plages = [`${h.de} – ${h.a}`];
+          if (h.de2 && h.a2) plages.push(`${h.de2} – ${h.a2}`);
+          cellulePlages.textContent = plages.join(" / ");
+        }
+        rangee.append(celluleJour, cellulePlages);
+        table.append(rangee);
+      }
+    }
+
+    // ---- Chargement ----
+    (async () => {
+      let boutique = null;
+      try {
+        const id = parametres.get("id");
+        const slug = parametres.get("s");
+        if (id) boutique = await boutiqueParId(id);
+        else if (slug) boutique = await boutiqueParSlug(slug);
+      } catch {
+        // permission refusée (boutique en_attente/suspendue) ou réseau
+        afficherIndisponible();
+        return;
+      }
+      // Une boutique lisible mais non active n'est montrée qu'à son proprio
+      // via l'espace commerçant — publiquement : indisponible (§12 critère 3).
+      if (!boutique || boutique.statut !== "active") {
+        afficherIndisponible();
+        return;
+      }
+
+      document.title = `${boutique.nom} — SUUQ`;
+
+      if (boutique.couvertureUrl) {
+        document.getElementById("couverture").style.backgroundImage =
+          `url("${urlTransformee(boutique.couvertureUrl, "w_800,q_auto,f_auto")}")`;
+      }
+      const logoConteneur = document.getElementById("logo-conteneur");
+      if (boutique.logoUrl) {
+        const logo = document.createElement("img");
+        logo.className = "logo-fiche";
+        logo.alt = "";
+        logo.src = urlTransformee(boutique.logoUrl, "w_200,q_auto,f_auto");
+        logoConteneur.append(logo);
+      } else {
+        const lettre = document.createElement("div");
+        lettre.className = "logo-fiche logo-lettre";
+        lettre.textContent = boutique.nom.charAt(0).toUpperCase();
+        logoConteneur.append(lettre);
+      }
+
+      const nomEl = document.getElementById("nom-b");
+      nomEl.textContent = boutique.nom;
+      if (boutique.badgeVerifie) {
+        const badge = document.createElement("span");
+        badge.className = "badge-verifie";
+        badge.textContent = "✓ Vérifié";
+        nomEl.append(" ", badge);
+      }
+      document.getElementById("categorie-b").textContent = boutique.categorie;
+      const description = document.getElementById("description-b");
+      if (boutique.description) description.textContent = boutique.description;
+      else description.hidden = true;
+
+      document.getElementById("localisation-b").textContent =
+        `📍 ${boutique.quartier} — ${boutique.repere}`;
+      if (boutique.geo) {
+        const itineraire = document.getElementById("btn-itineraire");
+        itineraire.href =
+          `https://www.google.com/maps/dir/?api=1&destination=${boutique.geo.lat},${boutique.geo.lng}`;
+        itineraire.hidden = false;
+      }
+
+      if (boutique.horaires) rendreHoraires(boutique.horaires);
+
+      // WhatsApp : message générique pré-rempli + compteur de clics
+      const btnWhatsapp = document.getElementById("btn-whatsapp");
+      const messageWa = `Salam ! J'ai vu votre boutique « ${boutique.nom} » sur SUUQ.`;
+      btnWhatsapp.href = `https://wa.me/${boutique.whatsapp}?text=${encodeURIComponent(messageWa)}`;
+      btnWhatsapp.addEventListener("click", () => {
+        incrementerStat("boutiques", boutique.id, "clicsWhatsapp").catch(() => {});
+      });
+
+      document.getElementById("btn-partager").addEventListener("click", async () => {
+        const url = new URL(`boutique.html?s=${encodeURIComponent(boutique.slug)}`, location.href).href;
+        try {
+          if (navigator.share) {
+            await navigator.share({ title: boutique.nom, text: `Découvrez ${boutique.nom} sur SUUQ`, url });
+          } else {
+            await navigator.clipboard.writeText(url);
+            afficherToast("Lien copié !");
+          }
+        } catch { /* partage annulé */ }
+      });
+
+      document.getElementById("chargement").hidden = true;
+      document.getElementById("fiche").hidden = false;
+
+      // Compteur de vues : au plus 1 fois par session (§4.1)
+      const cleVue = "suuq_vue_b_" + boutique.id;
+      if (!sessionStorage.getItem(cleVue)) {
+        sessionStorage.setItem(cleVue, "1");
+        incrementerStat("boutiques", boutique.id, "vues").catch(() => {});
+      }
+
+      // Catalogue : disponibles d'abord, indisponibles grisés en fin (§4.1)
+      try {
+        const produits = await produitsPublicsDeBoutique(boutique.id);
+        const catalogue = document.getElementById("catalogue");
+        for (const produit of produits) catalogue.append(carteProduit(produit, null));
+        document.getElementById("vide-catalogue").hidden = produits.length > 0;
+      } catch {
+        document.getElementById("vide-catalogue").textContent =
+          "Impossible de charger le catalogue. Vérifiez votre connexion.";
+        document.getElementById("vide-catalogue").hidden = false;
+      }
+    })();
+  </script>
 
 </body>
 </html>
