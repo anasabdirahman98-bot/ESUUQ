@@ -1,0 +1,42 @@
+# Déploiement GitHub Pages via workflow officiel (remplace "deploy from branch",
+# instable sur ce dépôt). Site 100 % statique : aucun build, le dépôt est
+# publié tel quel. Prérequis : Settings → Pages → Source = "GitHub Actions".
+name: Déployer sur GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Un seul déploiement à la fois ; les runs obsolètes sont annulés
+# (pare aux runs "zombies" constatés avec l'ancien mécanisme).
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deployer:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploiement.outputs.page_url }}
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+
+      - name: Configurer Pages
+        uses: actions/configure-pages@v5
+
+      - name: Empaqueter le site statique
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - name: Déployer
+        id: deploiement
+        uses: actions/deploy-pages@v4
