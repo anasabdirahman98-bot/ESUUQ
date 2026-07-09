@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#D95F18">
+  <meta name="robots" content="noindex">
   <title>Administration — SUUQ</title>
-  <link rel="manifest" href="manifest.json">
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="css/variables.css">
   <link rel="stylesheet" href="css/base.css">
@@ -15,14 +15,342 @@
 
   <header class="entete">
     <a class="logo" href="index.html">SUUQ</a>
+    <button class="btn btn-secondaire" id="btn-deconnexion">Se déconnecter</button>
   </header>
 
-  <main class="conteneur page-attente">
-    <p class="pictogramme">🛡️</p>
-    <h1>Administration</h1>
-    <p>L'espace admin sera construit au jalon M4.</p>
-    <a class="btn btn-primaire" href="index.html">Retour à l'accueil</a>
+  <main class="conteneur">
+
+    <p id="chargement" class="etat-vide">Chargement…</p>
+
+    <div class="page-attente" id="erreur-chargement" hidden>
+      <p class="pictogramme">📶</p>
+      <p>Connexion instable, réessayez.</p>
+      <button class="btn btn-primaire" onclick="location.reload()">Réessayer</button>
+    </div>
+
+    <div id="contenu" hidden>
+      <h1>Administration</h1>
+
+      <div class="grille-compteurs grille-compteurs-4">
+        <div class="compteur"><span class="valeur" id="c-actives">–</span><span class="libelle">Boutiques actives</span></div>
+        <div class="compteur"><span class="valeur" id="c-attente">–</span><span class="libelle">En attente</span></div>
+        <div class="compteur"><span class="valeur" id="c-produits">–</span><span class="libelle">Produits</span></div>
+        <div class="compteur"><span class="valeur" id="c-clics">–</span><span class="libelle">Clics WhatsApp</span></div>
+      </div>
+
+      <h2>File de validation</h2>
+      <div class="liste-cartes" id="liste-attente"></div>
+      <p class="etat-vide" id="vide-attente" hidden>Aucune boutique en attente. 🎉</p>
+
+      <h2>Toutes les boutiques</h2>
+      <div class="barre-recherche">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="7"></circle>
+          <line x1="16.5" y1="16.5" x2="21" y2="21"></line>
+        </svg>
+        <input type="search" id="recherche-admin" placeholder="Chercher une boutique par nom" aria-label="Chercher une boutique" autocomplete="off">
+      </div>
+      <div class="liste-cartes" id="liste-toutes"></div>
+      <p class="etat-vide" id="vide-toutes" hidden>Aucune boutique.</p>
+    </div>
+
   </main>
+
+  <script type="module">
+    // Espace admin (jalon M4) : validation, badge vérifié, suspension,
+    // modération produits, compteurs globaux (§4.3).
+    import { exigerConnexion, deconnecter } from "./js/auth.js";
+    import {
+      estAdmin, toutesBoutiquesAdmin, tousProduitsAdmin,
+      majBoutiqueAdmin, definirNotesAdmin, definirVisibiliteProduit,
+    } from "./js/db.js";
+    import { formatPrix, normaliser } from "./js/constantes.js";
+    import { afficherToast } from "./js/ui.js";
+
+    document.getElementById("btn-deconnexion").addEventListener("click", async () => {
+      await deconnecter();
+      location.replace("index.html");
+    });
+
+    const LIBELLES_STATUT = {
+      en_attente: ["chip-statut chip-attente", "⏳ En attente"],
+      active: ["chip-statut chip-active", "✅ Active"],
+      suspendue: ["chip-statut chip-suspendue", "⛔ Suspendue"],
+    };
+
+    let boutiques = [];
+    let produits = [];
+
+    function produitsDe(boutiqueId) {
+      return produits.filter((p) => p.boutiqueId === boutiqueId);
+    }
+
+    function rendreCompteurs() {
+      document.getElementById("c-actives").textContent =
+        boutiques.filter((b) => b.statut === "active").length;
+      document.getElementById("c-attente").textContent =
+        boutiques.filter((b) => b.statut === "en_attente").length;
+      document.getElementById("c-produits").textContent = produits.length;
+      document.getElementById("c-clics").textContent =
+        boutiques.reduce((somme, b) => somme + (b.stats?.clicsWhatsapp || 0), 0);
+    }
+
+    function chipStatut(statut) {
+      const [classe, texte] = LIBELLES_STATUT[statut] || LIBELLES_STATUT.en_attente;
+      const chip = document.createElement("span");
+      chip.className = classe;
+      chip.textContent = texte;
+      return chip;
+    }
+
+    // Fiche complète consultable (file de validation)
+    function detailsBoutique(b) {
+      const details = document.createElement("details");
+      const resume = document.createElement("summary");
+      resume.textContent = "Voir la fiche";
+      details.append(resume);
+      const corps = document.createElement("div");
+      corps.className = "fiche-details";
+      const lignes = [
+        ["Description", b.description || "—"],
+        ["Repère", b.repere],
+        ["WhatsApp", "+" + b.whatsapp],
+        ["Position GPS", b.geo ? `${b.geo.lat}, ${b.geo.lng}` : "non renseignée"],
+        ["Horaires", b.horaires ? "renseignés" : "non renseignés"],
+        ["Slug", b.slug],
+      ];
+      for (const [libelle, valeur] of lignes) {
+        const p = document.createElement("p");
+        const gras = document.createElement("strong");
+        gras.textContent = libelle + " : ";
+        p.append(gras, document.createTextNode(valeur));
+        corps.append(p);
+      }
+      if (b.logoUrl) {
+        const logo = document.createElement("img");
+        logo.className = "apercu-image";
+        logo.alt = "Logo";
+        logo.loading = "lazy";
+        logo.src = b.logoUrl;
+        corps.append(logo);
+      }
+      if (b.couvertureUrl) {
+        const couverture = document.createElement("img");
+        couverture.className = "apercu-image apercu-large";
+        couverture.alt = "Couverture";
+        couverture.loading = "lazy";
+        couverture.src = b.couvertureUrl;
+        corps.append(couverture);
+      }
+      details.append(corps);
+      return details;
+    }
+
+    // ---- File de validation ----
+    function carteAttente(b) {
+      const carte = document.createElement("div");
+      carte.className = "carte-admin";
+      const nom = document.createElement("div");
+      nom.className = "nom";
+      nom.textContent = b.nom;
+      const sousTitre = document.createElement("div");
+      sousTitre.className = "sous-titre";
+      sousTitre.textContent = `${b.categorie} · ${b.quartier}`;
+      carte.append(nom, sousTitre, detailsBoutique(b));
+
+      const actions = document.createElement("div");
+      actions.className = "actions";
+
+      const btnActiver = document.createElement("button");
+      btnActiver.className = "btn btn-primaire btn-petit";
+      btnActiver.textContent = "✅ Activer";
+      btnActiver.addEventListener("click", async () => {
+        btnActiver.disabled = true;
+        try {
+          await majBoutiqueAdmin(b.id, { statut: "active" });
+          b.statut = "active";
+          rendreTout();
+          afficherToast(`« ${b.nom} » est en ligne.`);
+        } catch {
+          btnActiver.disabled = false;
+          afficherToast("Échec. Réessayez.");
+        }
+      });
+
+      // Refus : motif stocké dans boutiques_prive.notesAdmin ; la boutique
+      // passe "suspendue" (seul statut non public hors file d'attente).
+      const btnRefuser = document.createElement("button");
+      btnRefuser.className = "btn btn-secondaire btn-petit btn-danger";
+      btnRefuser.textContent = "❌ Refuser";
+      btnRefuser.addEventListener("click", async () => {
+        const motif = prompt(`Motif du refus de « ${b.nom} » (visible de l'équipe uniquement) :`);
+        if (motif === null) return;
+        btnRefuser.disabled = true;
+        try {
+          await definirNotesAdmin(b.id, `Refus : ${motif}`.trim());
+          await majBoutiqueAdmin(b.id, { statut: "suspendue" });
+          b.statut = "suspendue";
+          rendreTout();
+          afficherToast(`« ${b.nom} » refusée.`);
+        } catch {
+          btnRefuser.disabled = false;
+          afficherToast("Échec. Réessayez.");
+        }
+      });
+
+      actions.append(btnActiver, btnRefuser);
+      carte.append(actions);
+      return carte;
+    }
+
+    // ---- Toutes les boutiques ----
+    function carteBoutiqueAdmin(b) {
+      const carte = document.createElement("div");
+      carte.className = "carte-admin";
+
+      const entete = document.createElement("div");
+      entete.className = "ligne-entete";
+      const nom = document.createElement("div");
+      nom.className = "nom";
+      nom.textContent = b.nom;
+      entete.append(nom, chipStatut(b.statut));
+      carte.append(entete);
+
+      const sousTitre = document.createElement("div");
+      sousTitre.className = "sous-titre";
+      sousTitre.textContent =
+        `${b.categorie} · ${b.quartier} · ${b.stats?.vues || 0} vues · ${b.stats?.clicsWhatsapp || 0} clics`;
+      carte.append(sousTitre);
+
+      // Interrupteur badge Vérifié — distinct de l'activation (§4.3) :
+      // l'activation rend visible, le badge atteste du contrôle physique.
+      const ligneBadge = document.createElement("label");
+      ligneBadge.className = "ligne-badge";
+      ligneBadge.append(document.createTextNode("Badge « ✓ Vérifié »"));
+      const interrupteur = document.createElement("label");
+      interrupteur.className = "interrupteur";
+      interrupteur.innerHTML = `<input type="checkbox"><span class="glissiere"></span>`;
+      const caseBadge = interrupteur.querySelector("input");
+      caseBadge.checked = Boolean(b.badgeVerifie);
+      caseBadge.addEventListener("change", async () => {
+        const badgeVerifie = caseBadge.checked;
+        try {
+          await majBoutiqueAdmin(b.id, { badgeVerifie });
+          b.badgeVerifie = badgeVerifie;
+          afficherToast(badgeVerifie ? "Badge attribué." : "Badge retiré.");
+        } catch {
+          caseBadge.checked = !badgeVerifie;
+          afficherToast("Échec. Réessayez.");
+        }
+      });
+      ligneBadge.append(interrupteur);
+      carte.append(ligneBadge);
+
+      const actions = document.createElement("div");
+      actions.className = "actions";
+      if (b.statut !== "en_attente") {
+        const suspendue = b.statut === "suspendue";
+        const btnStatut = document.createElement("button");
+        btnStatut.className = "btn btn-secondaire btn-petit" + (suspendue ? "" : " btn-danger");
+        btnStatut.textContent = suspendue ? "Réactiver" : "Suspendre";
+        btnStatut.addEventListener("click", async () => {
+          btnStatut.disabled = true;
+          const statut = suspendue ? "active" : "suspendue";
+          try {
+            await majBoutiqueAdmin(b.id, { statut });
+            b.statut = statut;
+            rendreTout();
+          } catch {
+            btnStatut.disabled = false;
+            afficherToast("Échec. Réessayez.");
+          }
+        });
+        actions.append(btnStatut);
+      }
+      carte.append(actions);
+
+      // Modération produits : masquer / rendre visible (§4.3)
+      const liste = produitsDe(b.id);
+      if (liste.length) {
+        const details = document.createElement("details");
+        const resume = document.createElement("summary");
+        resume.textContent = `Produits (${liste.length})`;
+        details.append(resume);
+        for (const p of liste) {
+          const ligne = document.createElement("div");
+          ligne.className = "ligne-moderation" + (p.visible ? "" : " masque");
+          const texte = document.createElement("span");
+          texte.textContent = `${p.nom} — ${formatPrix(p.prix)}${p.visible ? "" : " (masqué)"}`;
+          const btn = document.createElement("button");
+          btn.className = "btn btn-secondaire btn-petit" + (p.visible ? " btn-danger" : "");
+          btn.textContent = p.visible ? "Masquer" : "Rendre visible";
+          btn.addEventListener("click", async () => {
+            btn.disabled = true;
+            try {
+              await definirVisibiliteProduit(p.id, !p.visible);
+              p.visible = !p.visible;
+              rendreTout();
+            } catch {
+              btn.disabled = false;
+              afficherToast("Échec. Réessayez.");
+            }
+          });
+          ligne.append(texte, btn);
+          details.append(ligne);
+        }
+        carte.append(details);
+      }
+
+      return carte;
+    }
+
+    let filtreNom = "";
+    document.getElementById("recherche-admin").addEventListener("input", (e) => {
+      filtreNom = normaliser(e.target.value).trim();
+      rendreToutes();
+    });
+
+    function rendreAttente() {
+      const listeEl = document.getElementById("liste-attente");
+      listeEl.innerHTML = "";
+      const enAttente = boutiques.filter((b) => b.statut === "en_attente");
+      for (const b of enAttente) listeEl.append(carteAttente(b));
+      document.getElementById("vide-attente").hidden = enAttente.length > 0;
+    }
+
+    function rendreToutes() {
+      const listeEl = document.getElementById("liste-toutes");
+      listeEl.innerHTML = "";
+      const visibles = boutiques.filter((b) =>
+        !filtreNom || (b.nomLower || "").includes(filtreNom));
+      for (const b of visibles) listeEl.append(carteBoutiqueAdmin(b));
+      document.getElementById("vide-toutes").hidden = visibles.length > 0;
+    }
+
+    function rendreTout() {
+      rendreCompteurs();
+      rendreAttente();
+      rendreToutes();
+    }
+
+    // ---- Garde : connecté ET présent dans la collection admins (§4.3) ----
+    const user = await exigerConnexion("connexion.html");
+    if (user) {
+      try {
+        if (!(await estAdmin(user.uid))) {
+          location.replace("index.html"); // pas admin → accueil
+        } else {
+          [boutiques, produits] = await Promise.all([toutesBoutiquesAdmin(), tousProduitsAdmin()]);
+          rendreTout();
+          document.getElementById("chargement").hidden = true;
+          document.getElementById("contenu").hidden = false;
+        }
+      } catch {
+        document.getElementById("chargement").hidden = true;
+        document.getElementById("erreur-chargement").hidden = false;
+      }
+    }
+  </script>
 
 </body>
 </html>

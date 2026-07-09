@@ -263,6 +263,50 @@ export async function indexBoutiques() {
   });
 }
 
+// ---- Administration (jalon M4) ----
+// Les règles §7.1 donnent à l'admin (UID présent dans `admins`) une lecture
+// complète des collections : les requêtes ci-dessous sont sans filtre.
+
+export async function estAdmin(uid) {
+  const instantane = await avecDelai(getDoc(doc(db, "admins", uid)));
+  return instantane.exists();
+}
+
+export async function toutesBoutiquesAdmin() {
+  const resultat = await avecDelai(getDocs(collection(db, "boutiques")));
+  const liste = resultat.docs.map((d) => ({ id: d.id, ...d.data() }));
+  liste.sort((a, b) => (b.creeLe?.seconds || 0) - (a.creeLe?.seconds || 0));
+  return liste;
+}
+
+export async function tousProduitsAdmin() {
+  const resultat = await avecDelai(getDocs(collection(db, "produits")));
+  return resultat.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+// Mise à jour admin : statut, badgeVerifie… (tout sauf ownerUid, règle §7.1).
+export async function majBoutiqueAdmin(boutiqueId, champs) {
+  await avecDelai(updateDoc(doc(db, "boutiques", boutiqueId), {
+    ...champs,
+    majLe: serverTimestamp(),
+  }));
+}
+
+// Motif de refus / remarques — stocké dans boutiques_prive.notesAdmin (§4.3).
+// setDoc merge : fonctionne même si le document privé manque (création
+// interrompue) — il sera complété par reparerDocumentPrive au besoin.
+export async function definirNotesAdmin(boutiqueId, notes) {
+  await avecDelai(setDoc(doc(db, "boutiques_prive", boutiqueId), { notesAdmin: notes }, { merge: true }));
+}
+
+// Modération : masquer / rendre visible un produit (admin uniquement).
+export async function definirVisibiliteProduit(produitId, visible) {
+  await avecDelai(updateDoc(doc(db, "produits", produitId), {
+    visible,
+    majLe: serverTimestamp(),
+  }));
+}
+
 // ---- Compteurs publics ----
 // increment(1) et RIEN d'autre dans la mise à jour : la règle §7.1 n'accepte
 // que le champ stats (incréments de 0 ou +1) pour les visiteurs. Ne jamais

@@ -569,6 +569,73 @@
 /* Au-dessus de la barre collante quand elle est présente */
 body:has(.barre-collante:not([hidden])) .toast { bottom: 96px; }
 
+/* ---- Administration ---- */
+.grille-compteurs-4 { grid-template-columns: repeat(2, 1fr); }
+
+.liste-cartes {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+.carte-admin {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  background: var(--suuq-surface);
+  border: 1px solid var(--suuq-bordure);
+  border-radius: var(--suuq-radius);
+}
+.carte-admin .nom { font-weight: 700; }
+.carte-admin .sous-titre { font-size: 13px; color: var(--suuq-texte-2); }
+.carte-admin .ligne-entete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.carte-admin .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.carte-admin summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--suuq-primaire);
+  cursor: pointer;
+}
+.fiche-details { display: grid; gap: 6px; font-size: 14px; }
+.fiche-details p { margin: 0; }
+
+.chip-statut {
+  flex: none;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.chip-active { background: rgba(31, 122, 77, .1); color: var(--suuq-vert); }
+.chip-attente { background: rgba(217, 95, 24, .12); color: var(--suuq-primaire-fonce); }
+.chip-suspendue { background: rgba(192, 57, 43, .1); color: var(--suuq-rouge); }
+
+.ligne-badge {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.ligne-moderation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 14px;
+  border-top: 1px solid var(--suuq-bordure);
+}
+.ligne-moderation.masque span { opacity: .5; }
+
 /* ---- Bandeau de statut boutique ---- */
 .bandeau-statut {
   margin-bottom: 16px;

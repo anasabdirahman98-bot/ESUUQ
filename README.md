@@ -27,7 +27,7 @@ python3 -m http.server 8000
 | M1 | Auth + création de boutique + garde des pages `espace/` | ✅ Fait |
 | M2 | CRUD produits, compression images, tableau de bord | ✅ Fait |
 | M3 | Vitrine publique : recherche, fiches, WhatsApp, favoris, compteurs | ✅ Fait |
-| M4 | Espace admin : validation, badge vérifié, modération | ⏳ À venir |
+| M4 | Espace admin : validation, badge vérifié, modération | ✅ Fait |
 | M5 | Service worker, hors-ligne, audit performance, déploiement | ⏳ À venir |
 
 Le cahier des charges complet est dans [`docs/cahier-des-charges-phase1.md`](docs/cahier-des-charges-phase1.md),
@@ -82,6 +82,24 @@ en cas de conflit, l'avenant prévaut).
 6. **GitHub Pages** : Settings → Pages → Source = **GitHub Actions** (workflow
    [`deploy-pages.yml`](.github/workflows/deploy-pages.yml) — déploie `main`
    à chaque push).
+7. **Compte admin (M4)** : créer le compte email/mot de passe dans Authentication,
+   copier son UID, puis dans Firestore (base `default`) créer le document
+   `admins/{UID}` avec le champ `role` = `"admin"`. L'écriture de cette collection
+   n'est possible que depuis la console (règles §7.1). La page `admin.html`
+   redirige vers l'accueil tout utilisateur non admin.
+
+### Jeu d'essai (§14)
+
+`js/seed.js` — jamais chargé par les pages. Connecté en admin sur `admin.html`,
+dans la console navigateur :
+
+```js
+const seed = await import("./js/seed.js");
+await seed.executer();
+```
+
+Crée 3 boutiques (2 actives dont 1 vérifiée, 1 en attente) et 12 produits
+(photos placeholder locales, numéros WhatsApp factices `2537700xxxx`).
 
 ## Structure
 
