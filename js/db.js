@@ -38,6 +38,29 @@ export const db = initializeFirestore(app, { experimentalForceLongPolling: true 
 // aucune opération ne doit tourner indéfiniment sans feedback.
 const DELAI_MAX_MS = 15000;
 
+// Décrit une erreur pour l'utilisateur en distinguant la cause RÉELLE :
+// délai réseau ≠ refus de permission ≠ erreur inconnue. Un libellé trompeur
+// (« Connexion instable » pour un permission-denied) coûte cher à
+// diagnostiquer en conditions réelles — toujours passer par ce helper
+// dans les écrans d'erreur génériques.
+export function decrireErreur(erreur) {
+  if (erreur?.code === "delai-depasse") {
+    return { picto: "📶", titre: "Connexion instable, réessayez.", detail: "" };
+  }
+  if (erreur?.code === "permission-denied") {
+    return {
+      picto: "🔒",
+      titre: "Accès refusé par le serveur.",
+      detail: "Ce n'est pas un problème réseau : règles de sécurité Firestore ou droits du compte.",
+    };
+  }
+  return {
+    picto: "⚠️",
+    titre: "Une erreur est survenue. Réessayez.",
+    detail: erreur?.code ? `Code technique : ${erreur.code}` : (erreur?.message || ""),
+  };
+}
+
 export function avecDelai(promesse, ms = DELAI_MAX_MS) {
   return new Promise((resoudre, rejeter) => {
     const minuteur = setTimeout(() => {
@@ -139,12 +162,18 @@ export async function majBoutique(boutiqueId, champs) {
 
 // ---- Produits (jalon M2) ----
 
-// Produits d'une boutique, plus récents d'abord. Tri côté client pour
-// éviter un index composite (un commerçant a peu de produits).
-export async function produitsDeBoutique(boutiqueId) {
-  const resultat = await avecDelai(
-    getDocs(query(collection(db, "produits"), where("boutiqueId", "==", boutiqueId)))
-  );
+// Produits du commerçant pour SA boutique (tableau de bord), récents d'abord.
+// IMPORTANT — « rules are not filters » : le filtre ownerUid est OBLIGATOIRE.
+// Sans lui, les règles §7.1 ne peuvent pas prouver la requête pour un
+// non-admin (elle pourrait retourner des produits masqués d'autrui) et
+// Firestore répond permission-denied immédiatement. Ne jamais le retirer.
+// Tri côté client (deux égalités = pas d'index composite nécessaire).
+export async function produitsDeBoutique(uid, boutiqueId) {
+  const resultat = await avecDelai(getDocs(query(
+    collection(db, "produits"),
+    where("ownerUid", "==", uid),
+    where("boutiqueId", "==", boutiqueId)
+  )));
   const liste = resultat.docs.map((d) => ({ id: d.id, ...d.data() }));
   liste.sort((a, b) => (b.creeLe?.seconds || 0) - (a.creeLe?.seconds || 0));
   return liste;

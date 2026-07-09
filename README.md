@@ -52,6 +52,13 @@ en cas de conflit, l'avenant prévaut).
   compris) doit passer par le helper `avecDelai()` de `js/db.js` (15 s → erreur
   `delai-depasse`, message « Connexion instable, réessayez. »). Jamais d'opération
   sans feedback — c'est ce garde-fou qui a permis le diagnostic ci-dessus.
+- **« Rules are not filters » (correctif M4)** : toute requête Firestore doit être
+  PROUVABLE par les règles §7.1 pour le compte qui l'exécute. Un commerçant doit
+  toujours filtrer `where("ownerUid","==",uid)` (branche `estProprio`) ; le public
+  doit toujours filtrer `visible == true` / `statut == "active"`. Un compte admin
+  rend TOUTES les requêtes prouvables — ne jamais tester les parcours commerçant
+  avec un compte admin. Les écrans d'erreur passent par `decrireErreur()` (db.js)
+  qui distingue délai réseau / permission refusée / erreur inconnue.
 - **Images sur Cloudinary (avenant n°1, M2)** : pas de plan Blaze en Phase 1, donc
   pas de Firebase Storage. Upload non signé vers Cloudinary, confiné dans
   `js/images.js` + `js/cloudinary-config.js` (aucun autre module ne connaît

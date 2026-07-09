@@ -22,8 +22,9 @@
     <p id="chargement" class="etat-vide">Chargement…</p>
 
     <div class="page-attente" id="erreur-chargement" hidden>
-      <p class="pictogramme">📶</p>
-      <p>Connexion instable, réessayez.</p>
+      <p class="pictogramme" id="erreur-picto">📶</p>
+      <p id="erreur-titre">Connexion instable, réessayez.</p>
+      <p class="aide" id="erreur-detail"></p>
       <button class="btn btn-primaire" onclick="location.reload()">Réessayer</button>
     </div>
 
@@ -113,7 +114,7 @@
     // Uploads logo/couverture → Cloudinary (avenant n°1, correction
     // rétroactive M1 : Firebase Storage n'a jamais été provisionné).
     import { exigerConnexion } from "../js/auth.js";
-    import { boutiqueDeProprietaire, creerBoutique, majBoutique } from "../js/db.js";
+    import { boutiqueDeProprietaire, creerBoutique, majBoutique, decrireErreur } from "../js/db.js";
     import { compresserLogo, compresserPhoto, uploaderImage, urlTransformee } from "../js/images.js";
     import { CATEGORIES, QUARTIERS } from "../js/constantes.js";
 
@@ -304,7 +305,11 @@
         }
         chargement.hidden = true;
         form.hidden = false;
-      } catch {
+      } catch (erreur) {
+        const { picto, titre, detail } = decrireErreur(erreur);
+        document.getElementById("erreur-picto").textContent = picto;
+        document.getElementById("erreur-titre").textContent = titre;
+        document.getElementById("erreur-detail").textContent = detail;
         chargement.hidden = true;
         document.getElementById("erreur-chargement").hidden = false;
       }
@@ -331,6 +336,29 @@
 
       btnEnvoyer.disabled = true;
       btnEnvoyer.textContent = boutiqueExistante ? "Enregistrement…" : "Création en cours…";
+
+      // Unicité "une boutique par compte" (§7.3) revérifiée AU MOMENT de la
+      // soumission — le contrôle au chargement ne suffit pas : bouton Retour
+      // (bfcache), second onglet, ou création réussie suivie d'un écran
+      // d'erreur trompeur. Si la vérification elle-même échoue, on N'ÉCRIT
+      // PAS : mieux vaut un réessai qu'un doublon.
+      if (!boutiqueExistante) {
+        try {
+          const dejaCreee = await boutiqueDeProprietaire(user.uid);
+          if (dejaCreee) {
+            afficherErreur("Vous avez déjà une boutique — redirection vers votre tableau de bord…");
+            setTimeout(() => location.replace("index.html"), 1800);
+            return;
+          }
+        } catch (erreur) {
+          const { titre, detail } = decrireErreur(erreur);
+          afficherErreur(`Impossible de vérifier votre compte avant la création. ${titre} ${detail}`.trim());
+          btnEnvoyer.disabled = false;
+          btnEnvoyer.textContent = "Créer ma boutique";
+          return;
+        }
+      }
+
       try {
         const donnees = {
           nom: form.nom.value.trim(),
@@ -358,12 +386,14 @@
           window.scrollTo(0, 0);
         }
       } catch (erreur) {
-        let texte = boutiqueExistante
-          ? "L'enregistrement a échoué. Vérifiez votre connexion et réessayez."
-          : "La création a échoué. Vérifiez votre connexion et réessayez.";
-        if (erreur?.code === "delai-depasse" || erreur?.code === "upload-echec") texte = erreur.message;
-        if (erreur?.code === "permission-denied") {
+        let texte;
+        if (erreur?.code === "delai-depasse" || erreur?.code === "upload-echec") {
+          texte = erreur.message;
+        } else if (erreur?.code === "permission-denied") {
           texte = "Opération refusée par le serveur. Vérifiez que les règles de sécurité Firestore sont bien en place.";
+        } else {
+          const action = boutiqueExistante ? "L'enregistrement" : "La création";
+          texte = `${action} a échoué (${erreur?.code || erreur?.message || "erreur inconnue"}). Réessayez.`;
         }
         afficherErreur(texte);
         btnEnvoyer.disabled = false;

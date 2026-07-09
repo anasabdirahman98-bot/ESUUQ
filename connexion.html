@@ -59,7 +59,7 @@
   <script type="module">
     // Connexion / inscription / réinitialisation (jalon M1).
     import { connecter, inscrire, reinitialiserMdp, utilisateurCourant, traduireErreur } from "./js/auth.js";
-    import { boutiqueDeProprietaire } from "./js/db.js";
+    import { boutiqueDeProprietaire, decrireErreur } from "./js/db.js";
 
     const formConnexion = document.getElementById("form-connexion");
     const formInscription = document.getElementById("form-inscription");
@@ -78,9 +78,12 @@
       location.replace(boutique ? "espace/index.html" : "espace/boutique.html");
     }
 
-    // Message français adapté : délai réseau dépassé ou erreur d'auth Firebase.
+    // Message français selon la cause réelle : erreur d'auth Firebase
+    // (codes auth/*) ou erreur Firestore/réseau (via decrireErreur).
     function messageDe(erreur) {
-      return erreur?.code === "delai-depasse" ? erreur.message : traduireErreur(erreur);
+      if (String(erreur?.code || "").startsWith("auth/")) return traduireErreur(erreur);
+      const { titre, detail } = decrireErreur(erreur);
+      return `${titre} ${detail}`.trim();
     }
 
     function afficherMessage(texte, type) {

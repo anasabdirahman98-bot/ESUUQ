@@ -23,8 +23,9 @@
     <p id="chargement" class="etat-vide">Chargement…</p>
 
     <div class="page-attente" id="erreur-chargement" hidden>
-      <p class="pictogramme">📶</p>
-      <p>Connexion instable, réessayez.</p>
+      <p class="pictogramme" id="erreur-picto">📶</p>
+      <p id="erreur-titre">Connexion instable, réessayez.</p>
+      <p class="aide" id="erreur-detail"></p>
       <button class="btn btn-primaire" onclick="location.reload()">Réessayer</button>
     </div>
 
@@ -62,7 +63,7 @@
     import { exigerConnexion, deconnecter } from "./js/auth.js";
     import {
       estAdmin, toutesBoutiquesAdmin, tousProduitsAdmin,
-      majBoutiqueAdmin, definirNotesAdmin, definirVisibiliteProduit,
+      majBoutiqueAdmin, definirNotesAdmin, definirVisibiliteProduit, decrireErreur,
     } from "./js/db.js";
     import { formatPrix, normaliser } from "./js/constantes.js";
     import { afficherToast } from "./js/ui.js";
@@ -345,7 +346,11 @@
           document.getElementById("chargement").hidden = true;
           document.getElementById("contenu").hidden = false;
         }
-      } catch {
+      } catch (erreur) {
+        const { picto, titre, detail } = decrireErreur(erreur);
+        document.getElementById("erreur-picto").textContent = picto;
+        document.getElementById("erreur-titre").textContent = titre;
+        document.getElementById("erreur-detail").textContent = detail;
         document.getElementById("chargement").hidden = true;
         document.getElementById("erreur-chargement").hidden = false;
       }

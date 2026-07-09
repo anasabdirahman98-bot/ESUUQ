@@ -23,8 +23,9 @@
     <p id="chargement" class="etat-vide">Chargement…</p>
 
     <div class="page-attente" id="erreur-chargement" hidden>
-      <p class="pictogramme">📶</p>
-      <p>Connexion instable, réessayez.</p>
+      <p class="pictogramme" id="erreur-picto">📶</p>
+      <p id="erreur-titre">Connexion instable, réessayez.</p>
+      <p class="aide" id="erreur-detail"></p>
       <button class="btn btn-primaire" onclick="location.reload()">Réessayer</button>
     </div>
 
@@ -86,7 +87,7 @@
     // Ajout / édition d'un produit (jalon M2). Photos : compression client
     // (§8.3 amendé) puis upload Cloudinary ; miniature = transformation d'URL.
     import { exigerConnexion } from "../js/auth.js";
-    import { boutiqueDeProprietaire, produitParId, creerProduit, majProduit } from "../js/db.js";
+    import { boutiqueDeProprietaire, produitParId, creerProduit, majProduit, decrireErreur } from "../js/db.js";
     import { compresserPhoto, uploaderImage, urlMiniature } from "../js/images.js";
     import { CATEGORIES, normaliser } from "../js/constantes.js";
 
@@ -248,10 +249,13 @@
               }
               location.replace("index.html");
             } catch (erreur) {
-              let texte = "L'enregistrement a échoué. Vérifiez votre connexion et réessayez.";
-              if (erreur?.code === "delai-depasse" || erreur?.code === "upload-echec") texte = erreur.message;
-              if (erreur?.code === "permission-denied") {
+              let texte;
+              if (erreur?.code === "delai-depasse" || erreur?.code === "upload-echec") {
+                texte = erreur.message;
+              } else if (erreur?.code === "permission-denied") {
                 texte = "Enregistrement refusé par le serveur. Vérifiez que les règles de sécurité Firestore sont en place.";
+              } else {
+                texte = `L'enregistrement a échoué (${erreur?.code || erreur?.message || "erreur inconnue"}). Réessayez.`;
               }
               afficherErreur(texte);
               btnEnvoyer.disabled = false;
@@ -259,7 +263,11 @@
             }
           });
         }
-      } catch {
+      } catch (erreur) {
+        const { picto, titre, detail } = decrireErreur(erreur);
+        document.getElementById("erreur-picto").textContent = picto;
+        document.getElementById("erreur-titre").textContent = titre;
+        document.getElementById("erreur-detail").textContent = detail;
         chargement.hidden = true;
         document.getElementById("erreur-chargement").hidden = false;
       }

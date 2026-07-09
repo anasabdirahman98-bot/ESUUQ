@@ -23,8 +23,9 @@
     <p id="chargement" class="etat-vide">Chargement…</p>
 
     <div class="page-attente" id="erreur-chargement" hidden>
-      <p class="pictogramme">📶</p>
-      <p>Connexion instable, réessayez.</p>
+      <p class="pictogramme" id="erreur-picto">📶</p>
+      <p id="erreur-titre">Connexion instable, réessayez.</p>
+      <p class="aide" id="erreur-detail"></p>
       <button class="btn btn-primaire" onclick="location.reload()">Réessayer</button>
     </div>
 
@@ -60,8 +61,17 @@
     import { exigerConnexion, deconnecter } from "../js/auth.js";
     import {
       boutiqueDeProprietaire, reparerDocumentPrive,
-      produitsDeBoutique, majProduit, supprimerProduit,
+      produitsDeBoutique, majProduit, supprimerProduit, decrireErreur,
     } from "../js/db.js";
+
+    function afficherErreurChargement(erreur) {
+      const { picto, titre, detail } = decrireErreur(erreur);
+      document.getElementById("erreur-picto").textContent = picto;
+      document.getElementById("erreur-titre").textContent = titre;
+      document.getElementById("erreur-detail").textContent = detail;
+      document.getElementById("chargement").hidden = true;
+      document.getElementById("erreur-chargement").hidden = false;
+    }
     import { formatPrix } from "../js/constantes.js";
     import { afficherToast } from "../js/ui.js";
 
@@ -172,7 +182,7 @@
             } catch { /* partage annulé par l'utilisateur */ }
           });
 
-          const produits = await produitsDeBoutique(boutique.id);
+          const produits = await produitsDeBoutique(user.uid, boutique.id);
           for (const produit of produits) listeEl.append(ligneProduit(produit));
           majEtatListe();
 
@@ -182,9 +192,8 @@
           // Réparation silencieuse d'une création interrompue (voir db.js).
           reparerDocumentPrive(user, boutique.id).catch(() => {});
         }
-      } catch {
-        document.getElementById("chargement").hidden = true;
-        document.getElementById("erreur-chargement").hidden = false;
+      } catch (erreur) {
+        afficherErreurChargement(erreur);
       }
     }
   </script>
