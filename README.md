@@ -28,7 +28,7 @@ python3 -m http.server 8000
 | M2 | CRUD produits, compression images, tableau de bord | ✅ Fait |
 | M3 | Vitrine publique : recherche, fiches, WhatsApp, favoris, compteurs | ✅ Fait |
 | M4 | Espace admin : validation, badge vérifié, modération | ✅ Fait |
-| M5 | Service worker, hors-ligne, audit performance, déploiement | ⏳ À venir |
+| M5 | Service worker, hors-ligne, audit performance, déploiement | ✅ Fait |
 
 Le cahier des charges complet est dans [`docs/cahier-des-charges-phase1.md`](docs/cahier-des-charges-phase1.md),
 amendé par [`docs/avenant-1-cloudinary.md`](docs/avenant-1-cloudinary.md) (référentiel 1.2 —
@@ -130,5 +130,16 @@ Crée 3 boutiques (2 actives dont 1 vérifiée, 1 en attente) et 12 produits
 └── manifest.json
 ```
 
-Le service worker (`sw.js`) arrive au jalon M5.
+## Service worker et déploiement (M5)
+
+- `sw.js` : précache du shell (pages, CSS, JS, icônes — jamais `js/seed.js`),
+  images Cloudinary en *cache-first* plafonné à 60 entrées (purge FIFO),
+  SDK Firebase (URLs versionnées immuables) en *cache-first*, pages HTML en
+  *réseau d'abord* avec repli cache puis `hors-ligne.html`. Les API dynamiques
+  (Firestore, Auth, upload Cloudinary) ne sont jamais interceptées.
+- **À chaque déploiement qui modifie HTML/CSS/JS : incrémenter `CACHE_VERSION`
+  dans `sw.js`** (suuq-v1 → suuq-v2…), sinon les utilisateurs gardent
+  l'ancien shell en cache.
+- Budget premier chargement (hors images produits) : < 250 Ko — voir l'audit
+  dans le commit M5 ; vérifiable en ligne via Lighthouse (mobile).
 <!-- deploy M2 -->

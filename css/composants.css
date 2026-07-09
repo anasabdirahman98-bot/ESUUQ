@@ -310,6 +310,23 @@
   text-align: left;
 }
 
+/* ---- Champ mot de passe avec œil afficher/masquer ---- */
+.groupe-mdp { position: relative; }
+.champ .groupe-mdp input { padding-right: 52px; }
+.btn-oeil {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 44px;
+  border: none;
+  background: none;
+  font-size: 18px;
+  cursor: pointer;
+  border-radius: 10px;
+}
+
 /* ---- Téléphone avec préfixe fixe +253 ---- */
 .groupe-tel { display: flex; }
 .groupe-tel .prefixe {

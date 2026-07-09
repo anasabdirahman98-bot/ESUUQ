@@ -29,6 +29,13 @@
       <a class="btn btn-primaire" href="index.html">Retour à l'accueil</a>
     </div>
 
+    <div class="page-attente" id="erreur-reseau" hidden>
+      <p class="pictogramme" id="reseau-picto">📶</p>
+      <p id="reseau-titre">Connexion instable, réessayez.</p>
+      <p class="aide" id="reseau-detail"></p>
+      <button class="btn btn-primaire" onclick="location.reload()">Réessayer</button>
+    </div>
+
     <article id="fiche" hidden>
       <div class="galerie" id="galerie"></div>
       <div class="points" id="points" hidden></div>
@@ -66,7 +73,7 @@
 
   <script type="module">
     // Fiche produit publique (jalon M3).
-    import { produitParId, boutiqueParId, incrementerStat } from "./js/db.js";
+    import { produitParId, boutiqueParId, incrementerStat, decrireErreur } from "./js/db.js";
     import { urlFiche } from "./js/images.js";
     import { formatPrix } from "./js/constantes.js";
     import { carteProduit, afficherToast, estFavori, basculerFavori } from "./js/ui.js";
@@ -78,14 +85,28 @@
       document.getElementById("indisponible").hidden = false;
     }
 
+    // Un problème technique n'est PAS un produit indisponible : message
+    // distinct (délai réseau / erreur inconnue) avec bouton Réessayer.
+    function afficherErreurReseau(erreur) {
+      const { picto, titre, detail } = decrireErreur(erreur);
+      document.getElementById("reseau-picto").textContent = picto;
+      document.getElementById("reseau-titre").textContent = titre;
+      document.getElementById("reseau-detail").textContent = detail;
+      document.getElementById("chargement").hidden = true;
+      document.getElementById("erreur-reseau").hidden = false;
+    }
+
     (async () => {
       let produit = null;
       let boutique = null;
       try {
         produit = idProduit ? await produitParId(idProduit) : null;
         if (produit) boutique = await boutiqueParId(produit.boutiqueId);
-      } catch {
-        afficherIndisponible(); // masqué, boutique non active, ou réseau
+      } catch (erreur) {
+        // permission-denied = contenu réellement non public → indisponible ;
+        // le reste (délai, erreur technique) → écran réseau avec Réessayer.
+        if (erreur?.code === "permission-denied") afficherIndisponible();
+        else afficherErreurReseau(erreur);
         return;
       }
       // Sans boutique active, pas de commande possible : produit introuvable
@@ -212,6 +233,11 @@
         }
       } catch { /* section facultative */ }
     })();
+  </script>
+
+  <script>
+    // Service worker : cache hors ligne (jalon M5)
+    if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
   </script>
 
 </body>

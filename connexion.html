@@ -35,7 +35,10 @@
       </div>
       <div class="champ">
         <label for="mdp-connexion">Mot de passe</label>
-        <input type="password" id="mdp-connexion" name="mdp" required minlength="6" autocomplete="current-password">
+        <div class="groupe-mdp">
+          <input type="password" id="mdp-connexion" name="mdp" required minlength="6" autocomplete="current-password">
+          <button type="button" class="btn-oeil" aria-label="Afficher le mot de passe" aria-pressed="false">👁️</button>
+        </div>
       </div>
       <button class="btn btn-primaire btn-large" type="submit">Se connecter</button>
       <button class="lien-discret" type="button" id="btn-oubli">Mot de passe oublié ?</button>
@@ -48,7 +51,10 @@
       </div>
       <div class="champ">
         <label for="mdp-inscription">Mot de passe</label>
-        <input type="password" id="mdp-inscription" name="mdp" required minlength="6" autocomplete="new-password">
+        <div class="groupe-mdp">
+          <input type="password" id="mdp-inscription" name="mdp" required minlength="6" autocomplete="new-password">
+          <button type="button" class="btn-oeil" aria-label="Afficher le mot de passe" aria-pressed="false">👁️</button>
+        </div>
         <p class="aide">6 caractères minimum.</p>
       </div>
       <button class="btn btn-primaire btn-large" type="submit">Créer mon compte</button>
@@ -104,6 +110,19 @@
     ongletConnexion.addEventListener("click", () => basculer(false));
     ongletInscription.addEventListener("click", () => basculer(true));
 
+    // Œil 👁️ : afficher/masquer le mot de passe (saisie sur petit clavier
+    // tactile — demande Chen, M5).
+    for (const bouton of document.querySelectorAll(".btn-oeil")) {
+      bouton.addEventListener("click", () => {
+        const champ = bouton.parentElement.querySelector("input");
+        const visible = champ.type === "password";
+        champ.type = visible ? "text" : "password";
+        bouton.textContent = visible ? "🙈" : "👁️";
+        bouton.setAttribute("aria-pressed", String(visible));
+        bouton.setAttribute("aria-label", visible ? "Masquer le mot de passe" : "Afficher le mot de passe");
+      });
+    }
+
     formConnexion.addEventListener("submit", async (e) => {
       e.preventDefault();
       const bouton = formConnexion.querySelector("button[type=submit]");
@@ -148,6 +167,11 @@
         afficherMessage(traduireErreur(erreur), "erreur");
       }
     });
+  </script>
+
+  <script>
+    // Service worker : cache hors ligne (jalon M5)
+    if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
   </script>
 
 </body>

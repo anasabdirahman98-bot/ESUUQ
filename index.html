@@ -91,6 +91,7 @@
     <div class="page-attente" id="erreur-catalogue" hidden>
       <p class="pictogramme">📶</p>
       <p>Impossible de charger le catalogue.<br>Vérifiez votre connexion.</p>
+      <p class="aide" id="erreur-catalogue-detail"></p>
       <button class="btn btn-primaire" onclick="location.reload()">Réessayer</button>
     </div>
 
@@ -172,7 +173,14 @@
         index = await chargerIndex();
         rendreAccueil();
         rafraichir();
-      } catch {
+      } catch (erreur) {
+        // Détail de la cause (délai ≠ permission ≠ inconnu) — sans dépendre
+        // de db.js, dont l'import peut être la panne.
+        document.getElementById("erreur-catalogue-detail").textContent =
+          erreur?.code === "delai-depasse" ? ""
+          : erreur?.code === "permission-denied"
+            ? "Accès refusé par le serveur (règles de sécurité), pas un problème réseau."
+            : (erreur?.code || erreur?.message || "");
         sectionBoutiques.hidden = true;
         sectionNouveautes.hidden = true;
         sectionResultats.hidden = true;
@@ -228,6 +236,11 @@
         videResultats.hidden = true;
       }
     }
+  </script>
+
+  <script>
+    // Service worker : cache hors ligne (jalon M5)
+    if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
   </script>
 
 </body>

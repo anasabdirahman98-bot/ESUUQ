@@ -33,6 +33,7 @@
     <div class="page-attente" id="erreur-favoris" hidden>
       <p class="pictogramme">📶</p>
       <p>Impossible de charger vos favoris.<br>Vérifiez votre connexion.</p>
+      <p class="aide" id="erreur-favoris-detail"></p>
       <button class="btn btn-primaire" onclick="location.reload()">Réessayer</button>
     </div>
   </main>
@@ -55,7 +56,12 @@
       let index;
       try {
         index = await chargerIndex();
-      } catch {
+      } catch (erreur) {
+        document.getElementById("erreur-favoris-detail").textContent =
+          erreur?.code === "delai-depasse" ? ""
+          : erreur?.code === "permission-denied"
+            ? "Accès refusé par le serveur (règles de sécurité), pas un problème réseau."
+            : (erreur?.code || erreur?.message || "");
         document.getElementById("erreur-favoris").hidden = false;
         return;
       }
@@ -73,6 +79,11 @@
       if (conserves.length !== ids.length) ecrireFavoris(conserves);
       vide.hidden = conserves.length > 0;
     })();
+  </script>
+
+  <script>
+    // Service worker : cache hors ligne (jalon M5)
+    if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
   </script>
 
 </body>

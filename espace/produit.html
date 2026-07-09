@@ -274,5 +274,10 @@
     }
   </script>
 
+  <script>
+    // Service worker : cache hors ligne (jalon M5)
+    if ("serviceWorker" in navigator) navigator.serviceWorker.register("../sw.js");
+  </script>
+
 </body>
 </html>

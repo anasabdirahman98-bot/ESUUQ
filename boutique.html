@@ -29,6 +29,13 @@
       <a class="btn btn-primaire" href="index.html">Retour à l'accueil</a>
     </div>
 
+    <div class="page-attente" id="erreur-reseau" hidden>
+      <p class="pictogramme" id="reseau-picto">📶</p>
+      <p id="reseau-titre">Connexion instable, réessayez.</p>
+      <p class="aide" id="reseau-detail"></p>
+      <button class="btn btn-primaire" onclick="location.reload()">Réessayer</button>
+    </div>
+
     <article id="fiche" hidden>
       <div class="couverture-boutique" id="couverture"></div>
 
@@ -69,7 +76,7 @@
 
   <script type="module">
     // Fiche boutique publique (jalon M3).
-    import { boutiqueParId, boutiqueParSlug, produitsPublicsDeBoutique, incrementerStat } from "./js/db.js";
+    import { boutiqueParId, boutiqueParSlug, produitsPublicsDeBoutique, incrementerStat, decrireErreur } from "./js/db.js";
     import { urlTransformee } from "./js/images.js";
     import { carteProduit, afficherToast } from "./js/ui.js";
 
@@ -78,6 +85,17 @@
     function afficherIndisponible() {
       document.getElementById("chargement").hidden = true;
       document.getElementById("indisponible").hidden = false;
+    }
+
+    // Un problème technique n'est PAS une boutique indisponible : message
+    // distinct (délai réseau / erreur inconnue) avec bouton Réessayer.
+    function afficherErreurReseau(erreur) {
+      const { picto, titre, detail } = decrireErreur(erreur);
+      document.getElementById("reseau-picto").textContent = picto;
+      document.getElementById("reseau-titre").textContent = titre;
+      document.getElementById("reseau-detail").textContent = detail;
+      document.getElementById("chargement").hidden = true;
+      document.getElementById("erreur-reseau").hidden = false;
     }
 
     // ---- Horaires : indicateur Ouvert/Fermé en heure de Djibouti (UTC+3),
@@ -139,9 +157,11 @@
         const slug = parametres.get("s");
         if (id) boutique = await boutiqueParId(id);
         else if (slug) boutique = await boutiqueParSlug(slug);
-      } catch {
-        // permission refusée (boutique en_attente/suspendue) ou réseau
-        afficherIndisponible();
+      } catch (erreur) {
+        // permission-denied = boutique en_attente/suspendue → indisponible ;
+        // le reste (délai, erreur technique) → écran réseau avec Réessayer.
+        if (erreur?.code === "permission-denied") afficherIndisponible();
+        else afficherErreurReseau(erreur);
         return;
       }
       // Une boutique lisible mais non active n'est montrée qu'à son proprio
@@ -237,6 +257,11 @@
         document.getElementById("vide-catalogue").hidden = false;
       }
     })();
+  </script>
+
+  <script>
+    // Service worker : cache hors ligne (jalon M5)
+    if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
   </script>
 
 </body>
