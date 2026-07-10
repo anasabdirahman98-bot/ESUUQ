@@ -44,6 +44,12 @@ const DELAI_MAX_MS = 15000;
 // diagnostiquer en conditions réelles — toujours passer par ce helper
 // dans les écrans d'erreur génériques.
 export function decrireErreur(erreur) {
+  // Hors ligne : navigator.onLine, ou code Firestore "unavailable" (les
+  // données ne sont pas cachées — persistance offline volontairement NON
+  // activée en Phase 1). Testé en premier : prioritaire sur le délai.
+  if (navigator.onLine === false || erreur?.code === "unavailable") {
+    return { picto: "📡", titre: "Vous êtes hors ligne.", detail: "Reconnectez-vous pour voir cette page." };
+  }
   if (erreur?.code === "delai-depasse") {
     return { picto: "📶", titre: "Connexion instable, réessayez.", detail: "" };
   }

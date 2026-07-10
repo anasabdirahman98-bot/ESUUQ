@@ -1,7 +1,7 @@
 // Service worker SUUQ (jalon M5) — cache hors ligne, data chère (§8.1).
 // INCRÉMENTER CACHE_VERSION à chaque déploiement qui modifie HTML/CSS/JS :
 // c'est ce qui invalide les anciens caches chez les utilisateurs.
-const CACHE_VERSION = "suuq-v1";
+const CACHE_VERSION = "suuq-v2";
 
 const CACHE_SHELL = CACHE_VERSION + "-shell";
 const CACHE_IMAGES = CACHE_VERSION + "-images";

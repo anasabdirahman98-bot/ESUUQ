@@ -89,8 +89,8 @@
     </section>
 
     <div class="page-attente" id="erreur-catalogue" hidden>
-      <p class="pictogramme">📶</p>
-      <p>Impossible de charger le catalogue.<br>Vérifiez votre connexion.</p>
+      <p class="pictogramme" id="erreur-catalogue-picto">📶</p>
+      <p id="erreur-catalogue-titre">Impossible de charger le catalogue.<br>Vérifiez votre connexion.</p>
       <p class="aide" id="erreur-catalogue-detail"></p>
       <button class="btn btn-primaire" onclick="location.reload()">Réessayer</button>
     </div>
@@ -174,13 +174,20 @@
         rendreAccueil();
         rafraichir();
       } catch (erreur) {
-        // Détail de la cause (délai ≠ permission ≠ inconnu) — sans dépendre
-        // de db.js, dont l'import peut être la panne.
-        document.getElementById("erreur-catalogue-detail").textContent =
-          erreur?.code === "delai-depasse" ? ""
-          : erreur?.code === "permission-denied"
-            ? "Accès refusé par le serveur (règles de sécurité), pas un problème réseau."
-            : (erreur?.code || erreur?.message || "");
+        // Cause différenciée (hors ligne ≠ délai ≠ permission ≠ inconnu) —
+        // sans dépendre de db.js, dont l'import peut être la panne.
+        if (navigator.onLine === false || erreur?.code === "unavailable") {
+          document.getElementById("erreur-catalogue-picto").textContent = "📡";
+          document.getElementById("erreur-catalogue-titre").textContent = "Vous êtes hors ligne.";
+          document.getElementById("erreur-catalogue-detail").textContent =
+            "Reconnectez-vous pour voir cette page.";
+        } else {
+          document.getElementById("erreur-catalogue-detail").textContent =
+            erreur?.code === "delai-depasse" ? ""
+            : erreur?.code === "permission-denied"
+              ? "Accès refusé par le serveur (règles de sécurité), pas un problème réseau."
+              : (erreur?.code || erreur?.message || "");
+        }
         sectionBoutiques.hidden = true;
         sectionNouveautes.hidden = true;
         sectionResultats.hidden = true;

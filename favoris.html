@@ -31,8 +31,8 @@
     </div>
 
     <div class="page-attente" id="erreur-favoris" hidden>
-      <p class="pictogramme">📶</p>
-      <p>Impossible de charger vos favoris.<br>Vérifiez votre connexion.</p>
+      <p class="pictogramme" id="erreur-favoris-picto">📶</p>
+      <p id="erreur-favoris-titre">Impossible de charger vos favoris.<br>Vérifiez votre connexion.</p>
       <p class="aide" id="erreur-favoris-detail"></p>
       <button class="btn btn-primaire" onclick="location.reload()">Réessayer</button>
     </div>
@@ -57,11 +57,18 @@
       try {
         index = await chargerIndex();
       } catch (erreur) {
-        document.getElementById("erreur-favoris-detail").textContent =
-          erreur?.code === "delai-depasse" ? ""
-          : erreur?.code === "permission-denied"
-            ? "Accès refusé par le serveur (règles de sécurité), pas un problème réseau."
-            : (erreur?.code || erreur?.message || "");
+        if (navigator.onLine === false || erreur?.code === "unavailable") {
+          document.getElementById("erreur-favoris-picto").textContent = "📡";
+          document.getElementById("erreur-favoris-titre").textContent = "Vous êtes hors ligne.";
+          document.getElementById("erreur-favoris-detail").textContent =
+            "Reconnectez-vous pour voir cette page.";
+        } else {
+          document.getElementById("erreur-favoris-detail").textContent =
+            erreur?.code === "delai-depasse" ? ""
+            : erreur?.code === "permission-denied"
+              ? "Accès refusé par le serveur (règles de sécurité), pas un problème réseau."
+              : (erreur?.code || erreur?.message || "");
+        }
         document.getElementById("erreur-favoris").hidden = false;
         return;
       }
