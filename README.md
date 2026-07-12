@@ -31,8 +31,40 @@ python3 -m http.server 8000
 | M5 | Service worker, hors-ligne, audit performance, déploiement | ✅ Fait |
 
 Le cahier des charges complet est dans [`docs/cahier-des-charges-phase1.md`](docs/cahier-des-charges-phase1.md),
-amendé par [`docs/avenant-1-cloudinary.md`](docs/avenant-1-cloudinary.md) (référentiel 1.2 —
-en cas de conflit, l'avenant prévaut).
+amendé par [`docs/avenant-1-cloudinary.md`](docs/avenant-1-cloudinary.md) puis
+[`docs/avenant-2-supabase.md`](docs/avenant-2-supabase.md) (référentiel 2.0 —
+en cas de conflit, le dernier avenant prévaut).
+
+## 🚧 Migration Firebase → Supabase (avenant n°2, en cours)
+
+Motivée par la **souveraineté des données** (PostgreSQL open-source,
+auto-hébergeable sous juridiction africaine — seule `js/supabase-config.js`
+changera à la bascule). Base repartie de zéro, aucune donnée migrée.
+Cloudinary sera abandonné au profit de Supabase Storage. Firebase reste en
+place et fonctionnel jusqu'à validation complète (§9 de l'avenant).
+
+| Jalon | Contenu | État |
+|---|---|---|
+| S0 | Schéma SQL + RLS + bucket Storage + config client | ✅ Livré — SQL à exécuter (voir ci-dessous) |
+| S1 | Auth Supabase (inscription, connexion, reset, garde) | ⏳ À venir |
+| S2 | Création de boutique (RPC transactionnelle) + tableau de bord | ⏳ À venir |
+| S3 | CRUD produits + Storage (upload, miniatures, suppression) | ⏳ À venir |
+| S4 | Vitrine publique + re-tests d'intrusion RLS | ⏳ À venir |
+| S5 | Admin + service worker (suuq-v3) + audits | ⏳ À venir |
+
+### Mise en route S0 (Dashboard Supabase → SQL Editor, dans cet ordre)
+
+1. Exécuter [`supabase/schema.sql`](supabase/schema.sql) — tables, index,
+   fonctions (`est_admin`, incréments atomiques).
+2. Exécuter [`supabase/rls.sql`](supabase/rls.sql) — politiques Row Level
+   Security (⚠️ contient 2 corrections par rapport au texte de l'avenant,
+   documentées en tête de fichier : sous-requêtes WITH CHECK qualifiées,
+   verrou `owner_id` sur la mise à jour admin).
+3. Exécuter [`supabase/storage.sql`](supabase/storage.sql) — bucket public
+   `boutiques` + politiques par propriétaire.
+4. Vérifier (critère S0) : `curl -H "apikey: <clé anon>"
+   "https://kkdpfarvzgookvgfsbya.supabase.co/rest/v1/produits?select=id"`
+   doit renvoyer `[]` (vide mais autorisé), pas une erreur.
 
 ### Décisions prises avec Chen
 
