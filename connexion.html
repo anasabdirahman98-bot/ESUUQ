@@ -80,14 +80,14 @@
 
     // Avec boutique → tableau de bord ; sans boutique → création de boutique.
     async function routerVersEspace(user) {
-      const boutique = await boutiqueDeProprietaire(user.uid);
+      const boutique = await boutiqueDeProprietaire(user.id);
       location.replace(boutique ? "espace/index.html" : "espace/boutique.html");
     }
 
-    // Message français selon la cause réelle : erreur d'auth Firebase
-    // (codes auth/*) ou erreur Firestore/réseau (via decrireErreur).
+    // Message français selon la cause réelle : erreur d'authentification
+    // Supabase (marquée estAuth par auth.js) ou erreur données/réseau.
     function messageDe(erreur) {
-      if (String(erreur?.code || "").startsWith("auth/")) return traduireErreur(erreur);
+      if (erreur?.estAuth) return traduireErreur(erreur);
       const { titre, detail } = decrireErreur(erreur);
       return `${titre} ${detail}`.trim();
     }
@@ -129,8 +129,8 @@
       bouton.disabled = true;
       bouton.textContent = "Connexion…";
       try {
-        const cred = await connecter(formConnexion.email.value.trim(), formConnexion.mdp.value);
-        await routerVersEspace(cred.user);
+        const utilisateur = await connecter(formConnexion.email.value.trim(), formConnexion.mdp.value);
+        await routerVersEspace(utilisateur);
       } catch (erreur) {
         afficherMessage(messageDe(erreur), "erreur");
         bouton.disabled = false;
@@ -148,7 +148,7 @@
         // Nouveau compte : direction le formulaire "Créer ma boutique".
         location.replace("espace/boutique.html");
       } catch (erreur) {
-        afficherMessage(traduireErreur(erreur), "erreur");
+        afficherMessage(messageDe(erreur), "erreur");
         bouton.disabled = false;
         bouton.textContent = "Créer mon compte";
       }

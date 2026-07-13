@@ -1,7 +1,7 @@
 // Service worker SUUQ (jalon M5) — cache hors ligne, data chère (§8.1).
 // INCRÉMENTER CACHE_VERSION à chaque déploiement qui modifie HTML/CSS/JS :
 // c'est ce qui invalide les anciens caches chez les utilisateurs.
-const CACHE_VERSION = "suuq-v2";
+const CACHE_VERSION = "suuq-v2-s1"; // (suuq-v3 réservé au jalon S5, avenant n°2)
 
 const CACHE_SHELL = CACHE_VERSION + "-shell";
 const CACHE_IMAGES = CACHE_VERSION + "-images";
@@ -26,6 +26,7 @@ const SHELL = [
   "css/composants.css",
   "js/firebase-config.js",
   "js/cloudinary-config.js",
+  "js/supabase-config.js",
   "js/constantes.js",
   "js/db.js",
   "js/auth.js",

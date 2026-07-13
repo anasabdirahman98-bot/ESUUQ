@@ -168,7 +168,7 @@
     const user = await exigerConnexion("../connexion.html");
     if (user) {
       try {
-        const boutique = await boutiqueDeProprietaire(user.uid);
+        const boutique = await boutiqueDeProprietaire(user.id);
         if (!boutique) {
           location.replace("boutique.html"); // il faut d'abord une boutique
         } else {

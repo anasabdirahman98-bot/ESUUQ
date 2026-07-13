@@ -149,7 +149,7 @@
     const user = await exigerConnexion("../connexion.html");
     if (user) {
       try {
-        const boutique = await boutiqueDeProprietaire(user.uid);
+        const boutique = await boutiqueDeProprietaire(user.id);
         if (!boutique) {
           location.replace("boutique.html"); // pas encore de boutique
         } else {
@@ -182,7 +182,7 @@
             } catch { /* partage annulé par l'utilisateur */ }
           });
 
-          const produits = await produitsDeBoutique(user.uid, boutique.id);
+          const produits = await produitsDeBoutique(user.id, boutique.id);
           for (const produit of produits) listeEl.append(ligneProduit(produit));
           majEtatListe();
 

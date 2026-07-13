@@ -338,7 +338,7 @@
     const user = await exigerConnexion("connexion.html");
     if (user) {
       try {
-        if (!(await estAdmin(user.uid))) {
+        if (!(await estAdmin(user.id))) {
           location.replace("index.html"); // pas admin → accueil
         } else {
           [boutiques, produits] = await Promise.all([toutesBoutiquesAdmin(), tousProduitsAdmin()]);

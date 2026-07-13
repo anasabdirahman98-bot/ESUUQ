@@ -276,7 +276,7 @@
     const user = await exigerConnexion("../connexion.html");
     if (user) {
       try {
-        boutiqueExistante = await boutiqueDeProprietaire(user.uid);
+        boutiqueExistante = await boutiqueDeProprietaire(user.id);
         if (boutiqueExistante) {
           // Mode édition ("Modifier ma boutique", §4.2)
           document.title = "Modifier ma boutique — SUUQ";
@@ -344,7 +344,7 @@
       // PAS : mieux vaut un réessai qu'un doublon.
       if (!boutiqueExistante) {
         try {
-          const dejaCreee = await boutiqueDeProprietaire(user.uid);
+          const dejaCreee = await boutiqueDeProprietaire(user.id);
           if (dejaCreee) {
             afficherErreur("Vous avez déjà une boutique — redirection vers votre tableau de bord…");
             setTimeout(() => location.replace("index.html"), 1800);

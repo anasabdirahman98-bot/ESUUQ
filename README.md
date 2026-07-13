@@ -45,12 +45,19 @@ place et fonctionnel jusqu'à validation complète (§9 de l'avenant).
 
 | Jalon | Contenu | État |
 |---|---|---|
-| S0 | Schéma SQL + RLS + bucket Storage + config client | ✅ Livré — SQL à exécuter (voir ci-dessous) |
-| S1 | Auth Supabase (inscription, connexion, reset, garde) | ⏳ À venir |
+| S0 | Schéma SQL + RLS + bucket Storage + config client | ✅ Validé (SQL exécuté, RLS actif, REST → `[]`) |
+| S1 | Auth Supabase (inscription, connexion, reset, garde) | ✅ Fait |
 | S2 | Création de boutique (RPC transactionnelle) + tableau de bord | ⏳ À venir |
 | S3 | CRUD produits + Storage (upload, miniatures, suppression) | ⏳ À venir |
 | S4 | Vitrine publique + re-tests d'intrusion RLS | ⏳ À venir |
 | S5 | Admin + service worker (suuq-v3) + audits | ⏳ À venir |
+
+**État transitoire S1** : l'authentification et la lecture
+`boutiqueDeProprietaire` sont sur Supabase (`user.id` UUID remplace
+`user.uid`) ; le reste de la couche données (création de boutique, produits,
+vitrine, admin) demeure Firebase jusqu'aux jalons S2–S5 — la création de
+boutique et l'espace admin sont donc momentanément non fonctionnels avec un
+compte Supabase, c'est attendu.
 
 ### Mise en route S0 (Dashboard Supabase → SQL Editor, dans cet ordre)
 

@@ -1,6 +1,9 @@
-// Accès Firestore centralisé : initialisation Firebase + opérations boutiques.
-// Les SDK Firebase (v10, modules CDN) ne sont importés que par les pages
-// qui en ont besoin (§8.2 du cahier des charges) — jamais par l'accueil.
+// Couche d'accès aux données centralisée.
+// ÉTAT TRANSITOIRE (avenant n°2, migration jalon par jalon) : Supabase
+// remplace Firestore fonction par fonction. Au jalon S1, seule
+// boutiqueDeProprietaire est migrée (le routage post-connexion et les gardes
+// en dépendent) ; le reste demeure Firestore jusqu'aux jalons S2–S5, puis
+// le SDK Firebase sera retiré (§9 de l'avenant).
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
 import {
   initializeFirestore,
@@ -20,6 +23,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
 import { normaliser } from "./constantes.js";
+import { supabase } from "./supabase-config.js";
 
 export const app = initializeApp(firebaseConfig);
 
@@ -53,11 +57,13 @@ export function decrireErreur(erreur) {
   if (erreur?.code === "delai-depasse") {
     return { picto: "📶", titre: "Connexion instable, réessayez.", detail: "" };
   }
-  if (erreur?.code === "permission-denied") {
+  // "permission-denied" = règles Firestore ; "42501" = politique RLS
+  // PostgreSQL (avenant n°2 §6) — même sens, deux backends.
+  if (erreur?.code === "permission-denied" || erreur?.code === "42501") {
     return {
       picto: "🔒",
       titre: "Accès refusé par le serveur.",
-      detail: "Ce n'est pas un problème réseau : règles de sécurité Firestore ou droits du compte.",
+      detail: "Ce n'est pas un problème réseau : règles de sécurité (RLS/Firestore) ou droits du compte.",
     };
   }
   return {
@@ -81,15 +87,21 @@ export function avecDelai(promesse, ms = DELAI_MAX_MS) {
   });
 }
 
-// Retourne la boutique appartenant à cet utilisateur ({id, ...données}) ou null.
-// C'est aussi la vérification applicative "une boutique par compte" (§7.3).
-export async function boutiqueDeProprietaire(uid) {
-  const resultat = await avecDelai(
-    getDocs(query(collection(db, "boutiques"), where("ownerUid", "==", uid), limit(1)))
-  );
-  if (resultat.empty) return null;
-  const premier = resultat.docs[0];
-  return { id: premier.id, ...premier.data() };
+// Convertit la réponse supabase-js ({ data, error }) en valeur ou exception —
+// à réutiliser pour toutes les fonctions migrées (S1+).
+function donneesOuErreur({ data, error }) {
+  if (error) throw error;
+  return data;
+}
+
+// [SUPABASE — S1] Boutique du commerçant connecté ({...ligne} ou null).
+// userId = user.id (UUID Supabase). L'unicité une-boutique-par-compte est
+// garantie au niveau BDD (idx_boutiques_owner_unique) ; maybeSingle() la
+// reflète. Colonnes en snake_case (owner_id, nom_lower, logo_url…).
+export async function boutiqueDeProprietaire(userId) {
+  return donneesOuErreur(await avecDelai(
+    supabase.from("boutiques").select("*").eq("owner_id", userId).maybeSingle()
+  ));
 }
 
 // Slug : nom normalisé en kebab-case + 4 caractères aléatoires (unicité pratique).
