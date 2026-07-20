@@ -59,6 +59,17 @@ vitrine, admin) demeure Firebase jusqu'aux jalons S2–S5 — la création de
 boutique et l'espace admin sont donc momentanément non fonctionnels avec un
 compte Supabase, c'est attendu.
 
+### Keep-alive (incident S1 : pause automatique du plan gratuit)
+
+Le plan gratuit Supabase met le projet **en pause après 7 jours sans activité**
+(app totalement injoignable : `ERR_NAME_NOT_RESOLVED`). Le workflow
+[`keep-alive-supabase.yml`](.github/workflows/keep-alive-supabase.yml) envoie
+une requête REST légère **lundi et jeudi** pour maintenir le projet éveillé,
+et échoue bruyamment (onglet Actions) si l'API ne répond pas 200.
+⚠️ GitHub désactive les crons après ~60 jours sans commit : surveiller
+l'email « scheduled workflow disabled » et relancer le workflow à la main
+(`workflow_dispatch`) le cas échéant.
+
 ### Mise en route S0 (Dashboard Supabase → SQL Editor, dans cet ordre)
 
 1. Exécuter [`supabase/schema.sql`](supabase/schema.sql) — tables, index,

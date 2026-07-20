@@ -1,0 +1,29 @@
+# Empêche la mise en pause automatique du projet Supabase (plan gratuit :
+# pause après 7 jours sans activité — incident du S1 : app injoignable,
+# ERR_NAME_NOT_RESOLVED). Deux pings légers par semaine sur l'API REST.
+# La clé "publishable" est publique par nature (déjà dans js/supabase-config.js).
+#
+# ⚠️ GitHub désactive les crons après ~60 jours sans activité sur le dépôt :
+# surveiller l'email « scheduled workflow disabled » et le réactiver, ou
+# pousser un commit de temps en temps.
+name: Keep-alive Supabase
+
+on:
+  schedule:
+    - cron: "17 6 * * 1,4" # lundi et jeudi à 06:17 UTC (09:17 à Djibouti)
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Requête légère sur la table produits
+        run: |
+          code=$(curl -sS -o reponse.json -w "%{http_code}" \
+            -H "apikey: sb_publishable_wd9u2-t2RNa2KnIVtukQMA_gAJTDfhX" \
+            "https://kkdpfarvzgookvgfsbya.supabase.co/rest/v1/produits?select=id&limit=1")
+          echo "HTTP $code — $(cat reponse.json)"
+          if [ "$code" != "200" ]; then
+            echo "::error::Ping Supabase en échec (HTTP $code) — projet en pause ou API indisponible ?"
+            exit 1
+          fi
