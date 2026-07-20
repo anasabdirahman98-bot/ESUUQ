@@ -110,9 +110,10 @@
   </main>
 
   <script type="module">
-    // Création (M1) et modification (M2) de la boutique.
-    // Uploads logo/couverture → Cloudinary (avenant n°1, correction
-    // rétroactive M1 : Firebase Storage n'a jamais été provisionné).
+    // Création (S2, RPC transactionnelle Supabase) et modification de la
+    // boutique. TRANSITOIRE : les uploads logo/couverture passent encore
+    // par Cloudinary jusqu'au jalon S3 (Supabase Storage) — uploaderImage
+    // est l'unique point de bascule.
     import { exigerConnexion } from "../js/auth.js";
     import { boutiqueDeProprietaire, creerBoutique, majBoutique, decrireErreur } from "../js/db.js";
     import { compresserLogo, compresserPhoto, uploaderImage, urlTransformee } from "../js/images.js";
@@ -289,17 +290,18 @@
           form.quartier.value = b.quartier;
           form.repere.value = b.repere;
           form.whatsapp.value = (b.whatsapp || "").replace(/^253/, "");
-          if (b.geo) { geo = b.geo; afficherGeo(); }
+          // Colonnes Supabase (S2) : geo_lat/geo_lng à plat, URLs snake_case
+          if (b.geo_lat != null) { geo = { lat: b.geo_lat, lng: b.geo_lng }; afficherGeo(); }
           if (b.horaires) appliquerHoraires(b.horaires);
           else reglerHorairesPlusTard(true);
-          if (b.logoUrl) {
+          if (b.logo_url) {
             const apercu = document.getElementById("apercu-logo");
-            apercu.src = urlTransformee(b.logoUrl, "w_200,q_auto,f_auto");
+            apercu.src = urlTransformee(b.logo_url, "w_200,q_auto,f_auto");
             apercu.hidden = false;
           }
-          if (b.couvertureUrl) {
+          if (b.couverture_url) {
             const apercu = document.getElementById("apercu-couverture");
-            apercu.src = urlTransformee(b.couvertureUrl, "w_400,q_auto,f_auto");
+            apercu.src = urlTransformee(b.couverture_url, "w_400,q_auto,f_auto");
             apercu.hidden = false;
           }
         }
@@ -389,8 +391,11 @@
         let texte;
         if (erreur?.code === "delai-depasse" || erreur?.code === "upload-echec") {
           texte = erreur.message;
-        } else if (erreur?.code === "permission-denied") {
-          texte = "Opération refusée par le serveur. Vérifiez que les règles de sécurité Firestore sont bien en place.";
+        } else if (erreur?.code === "23505") {
+          // index unique une-boutique-par-compte (garde-fou BDD, S2)
+          texte = "Vous avez déjà une boutique — un seul compte par boutique.";
+        } else if (erreur?.code === "permission-denied" || erreur?.code === "42501") {
+          texte = "Opération refusée par le serveur. Vérifiez que les politiques de sécurité (RLS) sont bien en place.";
         } else {
           const action = boutiqueExistante ? "L'enregistrement" : "La création";
           texte = `${action} a échoué (${erreur?.code || erreur?.message || "erreur inconnue"}). Réessayez.`;

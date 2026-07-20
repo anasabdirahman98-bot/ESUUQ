@@ -60,7 +60,7 @@
     // liste des produits avec interrupteur Disponible/Rupture.
     import { exigerConnexion, deconnecter } from "../js/auth.js";
     import {
-      boutiqueDeProprietaire, reparerDocumentPrive,
+      boutiqueDeProprietaire,
       produitsDeBoutique, majProduit, supprimerProduit, decrireErreur,
     } from "../js/db.js";
 
@@ -165,8 +165,9 @@
           document.getElementById("nom-boutique").textContent = boutique.nom;
           document.getElementById("infos-boutique").textContent =
             `${boutique.categorie} · ${boutique.quartier}`;
-          document.getElementById("c-vues").textContent = boutique.stats?.vues ?? 0;
-          document.getElementById("c-clics").textContent = boutique.stats?.clicsWhatsapp ?? 0;
+          // Colonnes Supabase (S2) : compteurs à plat, plus de map stats
+          document.getElementById("c-vues").textContent = boutique.vues ?? 0;
+          document.getElementById("c-clics").textContent = boutique.clics_whatsapp ?? 0;
 
           // Partage de la page publique — canal d'acquisition clé (§4.2) :
           // le commerçant diffuse sa page sur ses statuts WhatsApp.
@@ -188,9 +189,8 @@
 
           document.getElementById("chargement").hidden = true;
           document.getElementById("contenu").hidden = false;
-
-          // Réparation silencieuse d'une création interrompue (voir db.js).
-          reparerDocumentPrive(user, boutique.id).catch(() => {});
+          // (la réparation du document privé a disparu : la création S2 est
+          // transactionnelle, plus d'état intermédiaire possible)
         }
       } catch (erreur) {
         afficherErreurChargement(erreur);

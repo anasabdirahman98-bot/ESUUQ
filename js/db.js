@@ -117,84 +117,73 @@ export function genererSlug(nom) {
   return `${base}-${alea}`;
 }
 
-// Contenu du document privé (recréé à l'identique par la réparation ci-dessous).
-function documentPrive(user) {
-  return { email: user.email, telPersonnel: null, notesAdmin: null };
-}
-
-// Crée la boutique (statut "en_attente") puis son document privé.
-//
-// IMPÉRATIF (§7.3) : deux écritures SÉQUENTIELLES (deux await distincts).
-// Ne JAMAIS grouper ces créations dans un writeBatch ou une transaction :
-// la règle de sécurité de boutiques_prive fait un get() sur boutiques/{id},
-// et dans un batch ce get() évaluerait l'état d'AVANT le batch — la boutique
-// n'existerait pas encore et l'écriture privée serait refusée.
+// [SUPABASE — S2] Création atomique boutique + fiche privée via la RPC
+// transactionnelle creer_boutique (supabase/fonctions-s2.sql) : les deux
+// insertions réussissent ou échouent ENSEMBLE — remplace les deux écritures
+// séquentielles de la Phase 1 (§7.3) et la fonction de réparation.
+// SECURITY INVOKER : les politiques RLS s'appliquent (owner_id = auth.uid(),
+// statut "en_attente" / badge false / compteurs 0 par défauts de colonnes).
+// Doublon → erreur 23505 (index unique une-boutique-par-compte).
 export async function creerBoutique(user, donnees) {
-  const ref = doc(collection(db, "boutiques"));
-
-  await avecDelai(setDoc(ref, {
-    ownerUid: user.uid,
-    nom: donnees.nom,
-    nomLower: normaliser(donnees.nom),
-    slug: genererSlug(donnees.nom),
-    description: donnees.description,
-    categorie: donnees.categorie,
-    quartier: donnees.quartier,
-    repere: donnees.repere,
-    geo: donnees.geo, // { lat, lng } ou null
-    whatsapp: donnees.whatsapp, // "253XXXXXXXX"
-    horaires: donnees.horaires, // map (2 plages/jour possibles) ou null
-    logoUrl: donnees.logoUrl,
-    couvertureUrl: donnees.couvertureUrl,
-    statut: "en_attente",
-    badgeVerifie: false,
-    stats: { vues: 0, clicsWhatsapp: 0 },
-    creeLe: serverTimestamp(),
-    majLe: serverTimestamp(),
-  }));
-
-  await avecDelai(setDoc(doc(db, "boutiques_prive", ref.id), documentPrive(user)));
-
-  return ref.id;
+  return donneesOuErreur(await avecDelai(supabase.rpc("creer_boutique", {
+    p_nom: donnees.nom,
+    p_nom_lower: normaliser(donnees.nom),
+    p_slug: genererSlug(donnees.nom),
+    p_description: donnees.description,
+    p_categorie: donnees.categorie,
+    p_quartier: donnees.quartier,
+    p_repere: donnees.repere,
+    p_geo_lat: donnees.geo?.lat ?? null,
+    p_geo_lng: donnees.geo?.lng ?? null,
+    p_whatsapp: donnees.whatsapp, // "253XXXXXXXX"
+    p_horaires: donnees.horaires, // jsonb (2 plages/jour possibles) ou null
+    p_logo_url: donnees.logoUrl,
+    p_couverture_url: donnees.couvertureUrl,
+    p_email: user.email ?? null,
+  })));
 }
 
-// Répare une création interrompue entre les deux écritures : si la boutique
-// existe mais pas son document privé, on le recrée. Appelé silencieusement
-// au chargement du tableau de bord.
-export async function reparerDocumentPrive(user, boutiqueId) {
-  const ref = doc(db, "boutiques_prive", boutiqueId);
-  const instantane = await avecDelai(getDoc(ref));
-  if (!instantane.exists()) {
-    await avecDelai(setDoc(ref, documentPrive(user)));
-  }
-}
-
-// Mise à jour de la boutique par son propriétaire. Ne JAMAIS passer statut,
-// badgeVerifie, stats ni ownerUid (refusés par les règles §7.1). Le slug
-// n'est pas régénéré au renommage : les liens déjà partagés restent valides.
+// [SUPABASE — S2] Mise à jour de la boutique par son propriétaire.
+// Champs applicatifs (camelCase, geo objet) → colonnes snake_case.
+// statut / badge_verifie / compteurs ne sont jamais passés (le RLS les
+// verrouille de toute façon). Le slug n'est pas régénéré au renommage :
+// les liens déjà partagés restent valides.
 export async function majBoutique(boutiqueId, champs) {
-  const maj = { ...champs, majLe: serverTimestamp() };
-  if (maj.nom !== undefined) maj.nomLower = normaliser(maj.nom);
-  await avecDelai(updateDoc(doc(db, "boutiques", boutiqueId), maj));
+  const maj = { maj_le: new Date().toISOString() };
+  if (champs.nom !== undefined) {
+    maj.nom = champs.nom;
+    maj.nom_lower = normaliser(champs.nom);
+  }
+  if (champs.description !== undefined) maj.description = champs.description;
+  if (champs.categorie !== undefined) maj.categorie = champs.categorie;
+  if (champs.quartier !== undefined) maj.quartier = champs.quartier;
+  if (champs.repere !== undefined) maj.repere = champs.repere;
+  if ("geo" in champs) {
+    maj.geo_lat = champs.geo?.lat ?? null;
+    maj.geo_lng = champs.geo?.lng ?? null;
+  }
+  if (champs.whatsapp !== undefined) maj.whatsapp = champs.whatsapp;
+  if ("horaires" in champs) maj.horaires = champs.horaires;
+  if (champs.logoUrl !== undefined) maj.logo_url = champs.logoUrl;
+  if (champs.couvertureUrl !== undefined) maj.couverture_url = champs.couvertureUrl;
+  donneesOuErreur(await avecDelai(
+    supabase.from("boutiques").update(maj).eq("id", boutiqueId)
+  ));
 }
 
-// ---- Produits (jalon M2) ----
+// ---- Produits ----
 
-// Produits du commerçant pour SA boutique (tableau de bord), récents d'abord.
-// IMPORTANT — « rules are not filters » : le filtre ownerUid est OBLIGATOIRE.
-// Sans lui, les règles §7.1 ne peuvent pas prouver la requête pour un
-// non-admin (elle pourrait retourner des produits masqués d'autrui) et
-// Firestore répond permission-denied immédiatement. Ne jamais le retirer.
-// Tri côté client (deux égalités = pas d'index composite nécessaire).
-export async function produitsDeBoutique(uid, boutiqueId) {
-  const resultat = await avecDelai(getDocs(query(
-    collection(db, "produits"),
-    where("ownerUid", "==", uid),
-    where("boutiqueId", "==", boutiqueId)
-  )));
-  const liste = resultat.docs.map((d) => ({ id: d.id, ...d.data() }));
-  liste.sort((a, b) => (b.creeLe?.seconds || 0) - (a.creeLe?.seconds || 0));
-  return liste;
+// [SUPABASE — S2] Produits du commerçant pour SON tableau de bord.
+// Le filtre owner_id reste EXPLICITE (leçon « rules are not filters » du
+// correctif M4) même si la politique RLS proprio suffirait ici.
+export async function produitsDeBoutique(userId, boutiqueId) {
+  const liste = donneesOuErreur(await avecDelai(
+    supabase.from("produits").select("*")
+      .eq("owner_id", userId)
+      .eq("boutique_id", boutiqueId)
+      .order("cree_le", { ascending: false })
+  ));
+  return liste || [];
 }
 
 export async function produitParId(produitId) {
@@ -340,8 +329,8 @@ export async function majBoutiqueAdmin(boutiqueId, champs) {
 }
 
 // Motif de refus / remarques — stocké dans boutiques_prive.notesAdmin (§4.3).
-// setDoc merge : fonctionne même si le document privé manque (création
-// interrompue) — il sera complété par reparerDocumentPrive au besoin.
+// [FIRESTORE — sera migré au jalon S5 ; la création S2 étant transactionnelle,
+// le document privé ne peut plus manquer.]
 export async function definirNotesAdmin(boutiqueId, notes) {
   await avecDelai(setDoc(doc(db, "boutiques_prive", boutiqueId), { notesAdmin: notes }, { merge: true }));
 }
