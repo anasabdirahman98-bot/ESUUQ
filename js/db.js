@@ -186,45 +186,59 @@ export async function produitsDeBoutique(userId, boutiqueId) {
   return liste || [];
 }
 
+// [SUPABASE — S3] Fiche produit pour l'édition (RLS : proprio ou public).
 export async function produitParId(produitId) {
-  const instantane = await avecDelai(getDoc(doc(db, "produits", produitId)));
-  return instantane.exists() ? { id: instantane.id, ...instantane.data() } : null;
+  return donneesOuErreur(await avecDelai(
+    supabase.from("produits").select("*").eq("id", produitId).maybeSingle()
+  ));
 }
 
-// Création d'un produit — visible: true et stats à zéro imposés par les
-// règles §7.1 (1 à 3 photos exigées).
+// [SUPABASE — S3] Création d'un produit. visible et compteurs ne sont PAS
+// passés : défauts de colonnes, verrouillés par la politique produits_insert
+// (qui vérifie aussi que la boutique appartient à l'appelant et 1–3 photos
+// via la contrainte de table).
 export async function creerProduit(user, boutiqueId, donnees) {
-  const ref = doc(collection(db, "produits"));
-  await avecDelai(setDoc(ref, {
-    boutiqueId,
-    ownerUid: user.uid,
+  donneesOuErreur(await avecDelai(supabase.from("produits").insert({
+    boutique_id: boutiqueId,
+    owner_id: user.id,
     nom: donnees.nom,
-    nomLower: normaliser(donnees.nom),
+    nom_lower: normaliser(donnees.nom),
     description: donnees.description,
     prix: donnees.prix, // entier FDJ > 0
     categorie: donnees.categorie,
     tags: donnees.tags, // max 5, normalisés
-    photos: donnees.photos, // 1 à 3 URLs Cloudinary (secure_url)
-    thumbUrl: donnees.thumbUrl, // transformation w_200 de la 1re photo
+    photos: donnees.photos, // 1 à 3 URLs publiques Storage
+    thumb_url: donnees.thumbUrl, // miniature 200 px carrée uploadée à part
     disponible: donnees.disponible,
-    visible: true,
-    stats: { vues: 0, clicsWhatsapp: 0 },
-    creeLe: serverTimestamp(),
-    majLe: serverTimestamp(),
-  }));
-  return ref.id;
+  })));
 }
 
-// Mise à jour d'un produit par son propriétaire. Ne JAMAIS passer visible,
-// stats, ownerUid ni boutiqueId (refusés par les règles §7.1).
+// [SUPABASE — S3] Mise à jour d'un produit par son propriétaire. Ne JAMAIS
+// passer visible, compteurs, owner_id ni boutique_id (verrouillés par le RLS).
 export async function majProduit(produitId, champs) {
-  const maj = { ...champs, majLe: serverTimestamp() };
-  if (maj.nom !== undefined) maj.nomLower = normaliser(maj.nom);
-  await avecDelai(updateDoc(doc(db, "produits", produitId), maj));
+  const maj = { maj_le: new Date().toISOString() };
+  if (champs.nom !== undefined) {
+    maj.nom = champs.nom;
+    maj.nom_lower = normaliser(champs.nom);
+  }
+  if (champs.description !== undefined) maj.description = champs.description;
+  if (champs.prix !== undefined) maj.prix = champs.prix;
+  if (champs.categorie !== undefined) maj.categorie = champs.categorie;
+  if (champs.tags !== undefined) maj.tags = champs.tags;
+  if (champs.photos !== undefined) maj.photos = champs.photos;
+  if (champs.thumbUrl !== undefined) maj.thumb_url = champs.thumbUrl;
+  if (champs.disponible !== undefined) maj.disponible = champs.disponible;
+  donneesOuErreur(await avecDelai(
+    supabase.from("produits").update(maj).eq("id", produitId)
+  ));
 }
 
+// [SUPABASE — S3] Suppression. Le nettoyage des images du bucket est fait
+// par l'appelant (supprimerImages de js/images.js, best effort).
 export async function supprimerProduit(produitId) {
-  await avecDelai(deleteDoc(doc(db, "produits", produitId)));
+  donneesOuErreur(await avecDelai(
+    supabase.from("produits").delete().eq("id", produitId)
+  ));
 }
 
 // ---- Lectures publiques (jalon M3) ----

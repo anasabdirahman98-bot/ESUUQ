@@ -110,14 +110,18 @@
   </main>
 
   <script type="module">
-    // Création (S2, RPC transactionnelle Supabase) et modification de la
-    // boutique. TRANSITOIRE : les uploads logo/couverture passent encore
-    // par Cloudinary jusqu'au jalon S3 (Supabase Storage) — uploaderImage
-    // est l'unique point de bascule.
+    // Création (S2, RPC transactionnelle) et modification de la boutique.
+    // Images (S3) : Supabase Storage — le chemin exige l'id de la boutique,
+    // donc à la création on crée d'abord la boutique (sans images) puis on
+    // rattache logo/couverture par une mise à jour.
     import { exigerConnexion } from "../js/auth.js";
     import { boutiqueDeProprietaire, creerBoutique, majBoutique, decrireErreur } from "../js/db.js";
-    import { compresserLogo, compresserPhoto, uploaderImage, urlTransformee } from "../js/images.js";
+    import {
+      compresserLogo, compresserPhoto, uploaderImage, cheminImage,
+      supprimerImages, urlTransformee,
+    } from "../js/images.js";
     import { CATEGORIES, QUARTIERS } from "../js/constantes.js";
+    import { afficherToast } from "../js/ui.js";
 
     const chargement = document.getElementById("chargement");
     const form = document.getElementById("form-boutique");
@@ -374,15 +378,37 @@
         };
 
         if (boutiqueExistante) {
-          // Nouveau fichier choisi → nouvelle URL ; sinon on garde l'existante.
-          if (blobLogo) donnees.logoUrl = await uploaderImage(blobLogo);
-          if (blobCouverture) donnees.couvertureUrl = await uploaderImage(blobCouverture);
+          // Nouveau fichier choisi → upload + nouvelle URL ; sinon inchangé.
+          if (blobLogo) {
+            donnees.logoUrl = await uploaderImage(blobLogo, cheminImage(user.id, boutiqueExistante.id, "logo"));
+          }
+          if (blobCouverture) {
+            donnees.couvertureUrl = await uploaderImage(blobCouverture, cheminImage(user.id, boutiqueExistante.id, "couverture"));
+          }
           await majBoutique(boutiqueExistante.id, donnees);
+          // Nettoyage best effort des anciennes images remplacées
+          const remplacees = [];
+          if (blobLogo && boutiqueExistante.logo_url) remplacees.push(boutiqueExistante.logo_url);
+          if (blobCouverture && boutiqueExistante.couverture_url) remplacees.push(boutiqueExistante.couverture_url);
+          supprimerImages(remplacees).catch(() => {});
           location.replace("index.html");
         } else {
-          donnees.logoUrl = blobLogo ? await uploaderImage(blobLogo) : null;
-          donnees.couvertureUrl = blobCouverture ? await uploaderImage(blobCouverture) : null;
-          await creerBoutique(user, donnees);
+          // 1) Créer la boutique (transaction RPC) — les chemins d'images
+          //    exigent son id, donc les visuels sont rattachés juste après.
+          donnees.logoUrl = null;
+          donnees.couvertureUrl = null;
+          const idBoutique = await creerBoutique(user, donnees);
+          if (blobLogo || blobCouverture) {
+            try {
+              const visuels = {};
+              if (blobLogo) visuels.logoUrl = await uploaderImage(blobLogo, cheminImage(user.id, idBoutique, "logo"));
+              if (blobCouverture) visuels.couvertureUrl = await uploaderImage(blobCouverture, cheminImage(user.id, idBoutique, "couverture"));
+              await majBoutique(idBoutique, visuels);
+            } catch {
+              // la boutique EST créée — seuls les visuels ont échoué
+              afficherToast("Boutique créée, mais l'envoi des images a échoué — réessayez depuis « Modifier ma boutique ».");
+            }
+          }
           form.hidden = true;
           confirmation.hidden = false;
           window.scrollTo(0, 0);

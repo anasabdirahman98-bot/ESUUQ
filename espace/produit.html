@@ -84,11 +84,15 @@
   </main>
 
   <script type="module">
-    // Ajout / édition d'un produit (jalon M2). Photos : compression client
-    // (§8.3 amendé) puis upload Cloudinary ; miniature = transformation d'URL.
+    // Ajout / édition d'un produit (jalon S3) : compression client, upload
+    // Supabase Storage, miniature 200 px carrée générée côté client,
+    // nettoyage des images remplacées/supprimées (avenant n°2 §5.3).
     import { exigerConnexion } from "../js/auth.js";
     import { boutiqueDeProprietaire, produitParId, creerProduit, majProduit, decrireErreur } from "../js/db.js";
-    import { compresserPhoto, uploaderImage, urlMiniature } from "../js/images.js";
+    import {
+      compresserPhoto, compresserMiniatureCarree,
+      uploaderImage, cheminImage, supprimerImages,
+    } from "../js/images.js";
     import { CATEGORIES, normaliser } from "../js/constantes.js";
 
     const chargement = document.getElementById("chargement");
@@ -177,7 +181,8 @@
           const idProduit = new URLSearchParams(location.search).get("id");
           if (idProduit) {
             produitExistant = await produitParId(idProduit);
-            if (!produitExistant || produitExistant.boutiqueId !== boutique.id) {
+            // Colonne Supabase (S3) : boutique_id en snake_case
+            if (!produitExistant || produitExistant.boutique_id !== boutique.id) {
               location.replace("index.html");
             } else {
               document.title = "Modifier le produit — SUUQ";
@@ -189,12 +194,12 @@
               form.description.value = produitExistant.description || "";
               form.tags.value = (produitExistant.tags || []).join(", ");
               document.getElementById("disponible").checked = produitExistant.disponible;
-              photos = (produitExistant.photos || []).map((url) => ({ url, apercu: urlMiniature(url) }));
+              photos = (produitExistant.photos || []).map((url) => ({ url, apercu: url }));
               rendrePhotos();
             }
           }
 
-          if (!idProduit || (produitExistant && produitExistant.boutiqueId === boutique.id)) {
+          if (!idProduit || (produitExistant && produitExistant.boutique_id === boutique.id)) {
             chargement.hidden = true;
             form.hidden = false;
           }
@@ -223,12 +228,40 @@
 
             btnEnvoyer.disabled = true;
             btnEnvoyer.textContent = "Enregistrement…";
+            // URLs uploadées dans cette soumission — à nettoyer si la
+            // base refuse ensuite (pas d'orphelins, avenant §5.3).
+            const nouvellesUrls = [];
             try {
               // Upload séquentiel des nouvelles photos (3G : une à la fois),
               // les photos déjà en ligne gardent leur URL.
               const urls = [];
+              const blobsParUrl = new Map();
               for (const photo of photos) {
-                urls.push(photo.url || await uploaderImage(photo.blob));
+                if (photo.url) {
+                  urls.push(photo.url);
+                } else {
+                  const url = await uploaderImage(photo.blob, cheminImage(user.id, boutique.id, "produit"));
+                  urls.push(url);
+                  nouvellesUrls.push(url);
+                  blobsParUrl.set(url, photo.blob);
+                }
+              }
+
+              // Miniature 200 px carrée de la PREMIÈRE photo : conservée si
+              // cette photo n'a pas changé, régénérée sinon.
+              let thumbUrl;
+              if (produitExistant && produitExistant.photos?.[0] === urls[0] && produitExistant.thumb_url) {
+                thumbUrl = produitExistant.thumb_url;
+              } else {
+                let source = blobsParUrl.get(urls[0]);
+                if (!source) {
+                  // première photo = image existante réordonnée : on la
+                  // récupère depuis le bucket public pour la recadrer
+                  source = await (await fetch(urls[0])).blob();
+                }
+                const miniature = await compresserMiniatureCarree(source);
+                thumbUrl = await uploaderImage(miniature, cheminImage(user.id, boutique.id, "miniature"));
+                nouvellesUrls.push(thumbUrl);
               }
 
               const donnees = {
@@ -238,17 +271,26 @@
                 categorie: selectCategorie.value,
                 tags,
                 photos: urls,
-                thumbUrl: urlMiniature(urls[0]),
+                thumbUrl,
                 disponible: document.getElementById("disponible").checked,
               };
 
               if (produitExistant) {
                 await majProduit(produitExistant.id, donnees);
+                // Nettoyage best effort des images remplacées/retirées
+                const aSupprimer = (produitExistant.photos || []).filter((u) => !urls.includes(u));
+                if (produitExistant.thumb_url && produitExistant.thumb_url !== thumbUrl) {
+                  aSupprimer.push(produitExistant.thumb_url);
+                }
+                supprimerImages(aSupprimer).catch(() => {});
               } else {
                 await creerProduit(user, boutique.id, donnees);
               }
               location.replace("index.html");
             } catch (erreur) {
+              // La base a refusé (ou un upload a échoué en route) : on retire
+              // les images déjà envoyées pour ne laisser aucun orphelin.
+              supprimerImages(nouvellesUrls).catch(() => {});
               let texte;
               if (erreur?.code === "delai-depasse" || erreur?.code === "upload-echec") {
                 texte = erreur.message;

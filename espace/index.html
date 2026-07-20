@@ -74,6 +74,7 @@
     }
     import { formatPrix } from "../js/constantes.js";
     import { afficherToast } from "../js/ui.js";
+    import { supprimerImages } from "../js/images.js";
 
     document.getElementById("btn-deconnexion").addEventListener("click", async () => {
       await deconnecter();
@@ -106,7 +107,7 @@
           <a class="btn btn-secondaire btn-petit">Modifier</a>
           <button class="btn btn-secondaire btn-petit btn-danger" type="button">Supprimer</button>
         </div>`;
-      ligne.querySelector("img").src = produit.thumbUrl || "../assets/placeholder-produit.svg";
+      ligne.querySelector("img").src = produit.thumb_url || "../assets/placeholder-produit.svg";
       ligne.querySelector(".nom").textContent = produit.nom;
       ligne.querySelector(".prix").textContent = formatPrix(produit.prix);
       ligne.querySelector("a.btn-petit").href = "produit.html?id=" + produit.id;
@@ -127,14 +128,15 @@
         }
       });
 
-      // Suppression avec confirmation. L'image Cloudinary devient orpheline :
-      // accepté en Phase 1 (avenant §5.1).
+      // Suppression avec confirmation, puis nettoyage best effort des images
+      // du bucket (gain de la migration Supabase, avenant n°2 §5.3).
       const btnSupprimer = ligne.querySelector(".btn-danger");
       btnSupprimer.addEventListener("click", async () => {
         if (!confirm(`Supprimer « ${produit.nom} » ? Cette action est définitive.`)) return;
         btnSupprimer.disabled = true;
         try {
           await supprimerProduit(produit.id);
+          supprimerImages([...(produit.photos || []), produit.thumb_url]).catch(() => {});
           ligne.remove();
           majEtatListe();
         } catch {

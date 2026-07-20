@@ -48,16 +48,17 @@ place et fonctionnel jusqu'à validation complète (§9 de l'avenant).
 | S0 | Schéma SQL + RLS + bucket Storage + config client | ✅ Validé (SQL exécuté, RLS actif, REST → `[]`) |
 | S1 | Auth Supabase (inscription, connexion, reset, garde) | ✅ Fait |
 | S2 | Création de boutique (RPC transactionnelle) + tableau de bord | ✅ Fait — exécuter [`supabase/fonctions-s2.sql`](supabase/fonctions-s2.sql) |
-| S3 | CRUD produits + Storage (upload, miniatures, suppression) | ⏳ À venir |
+| S3 | CRUD produits + Storage (upload, miniatures, suppression) | ✅ Fait |
 | S4 | Vitrine publique + re-tests d'intrusion RLS | ⏳ À venir |
 | S5 | Admin + service worker (suuq-v3) + audits | ⏳ À venir |
 
-**État transitoire S2** : auth, boutiques (création RPC transactionnelle,
-édition, tableau de bord) sur Supabase. Encore sur Firebase/Cloudinary
-jusqu'aux jalons suivants : CRUD produits et images (S3 — les uploads
-logo/couverture passent transitoirement par Cloudinary), vitrine publique et
-compteurs (S4), admin (S5) — l'ajout de produit et l'admin sont donc
-momentanément non fonctionnels, c'est attendu.
+**État transitoire S3** : auth, boutiques, produits et images (Supabase
+Storage : miniatures 200 px carrées générées côté client, suppression des
+images remplacées/supprimées — plus d'orphelins) sont sur Supabase. Encore
+sur Firebase : vitrine publique et compteurs (S4), admin (S5) — la vitrine
+n'affiche pas les nouvelles données et l'admin est hors service, c'est
+attendu. Les anciennes URLs Cloudinary restent affichées telles quelles
+(cohabitation, avenant §7).
 
 ### Keep-alive (incident S1 : pause automatique du plan gratuit)
 

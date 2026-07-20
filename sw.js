@@ -1,7 +1,7 @@
 // Service worker SUUQ (jalon M5) — cache hors ligne, data chère (§8.1).
 // INCRÉMENTER CACHE_VERSION à chaque déploiement qui modifie HTML/CSS/JS :
 // c'est ce qui invalide les anciens caches chez les utilisateurs.
-const CACHE_VERSION = "suuq-v2-s2"; // (suuq-v3 réservé au jalon S5, avenant n°2)
+const CACHE_VERSION = "suuq-v2-s3"; // (suuq-v3 réservé au jalon S5, avenant n°2)
 
 const CACHE_SHELL = CACHE_VERSION + "-shell";
 const CACHE_IMAGES = CACHE_VERSION + "-images";
@@ -130,7 +130,11 @@ self.addEventListener("fetch", (evenement) => {
     return;
   }
 
-  if (url.hostname === "res.cloudinary.com") {
+  // Images : Cloudinary (anciennes) et Supabase Storage public (S3+).
+  // Le chemin /storage/... est le SEUL de *.supabase.co intercepté — les
+  // appels REST/Auth ne passent jamais par le cache.
+  if (url.hostname === "res.cloudinary.com"
+    || (url.hostname.endsWith(".supabase.co") && url.pathname.startsWith("/storage/v1/object/public/"))) {
     evenement.respondWith(imageCacheDAbord(requete));
     return;
   }
